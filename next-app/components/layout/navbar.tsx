@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Navigation01Icon } from "@hugeicons/core-free-icons"
+<<<<<<< HEAD
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { MobileNav } from "@/components/layout/mobile-nav"
 import { NavAuth } from "@/components/layout/nav-auth"
@@ -11,6 +12,18 @@ const navLinks = [
   { label: "How It Works", href: "/#how-it-works" },
   { label: "Become a Rider", href: "/#become-rider" },
   { label: "Become a Provider", href: "/#become-provider" },
+=======
+import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/layout/theme-toggle"
+import { MobileNav } from "@/components/layout/mobile-nav"
+
+const navLinks = [
+  { label: "Home", href: "#home" },
+  { label: "Services", href: "#services" },
+  { label: "How It Works", href: "#how-it-works" },
+  { label: "Become a Rider", href: "#become-rider" },
+  { label: "Become a Provider", href: "#become-provider" },
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
 ]
 
 export function Navbar() {
@@ -52,12 +65,34 @@ export function Navbar() {
           ))}
         </nav>
 
+<<<<<<< HEAD
         {/* Actions (Login, Sign Up, Dashboard, Theme Toggle, Mobile Menu) */}
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
 
           {/* Desktop Auth Controls */}
           <NavAuth />
+=======
+        {/* Actions (Login, Sign Up, Theme Toggle, Mobile Menu) */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <ThemeToggle />
+
+          <div className="hidden sm:flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-sm font-medium text-foreground hover:bg-muted"
+            >
+              Log In
+            </Button>
+            <Button
+              size="sm"
+              className="text-sm font-medium shadow-sm hover:opacity-95"
+            >
+              Sign Up
+            </Button>
+          </div>
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
 
           {/* Mobile Navigation Trigger */}
           <MobileNav navLinks={navLinks} />
@@ -66,5 +101,8 @@ export function Navbar() {
     </header>
   )
 }
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e

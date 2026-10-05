@@ -30,7 +30,10 @@ pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+<<<<<<< HEAD
 !.env*.example
+=======
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
 
 # vercel
 .vercel

@@ -1,6 +1,18 @@
+<<<<<<< HEAD
 import { HugeiconsIcon } from "@hugeicons/react"
 import { ShieldCheckIcon } from "@hugeicons/core-free-icons"
 import { BottomCtaButtons } from "@/components/landing/bottom-cta-buttons"
+=======
+import Link from "next/link"
+import { HugeiconsIcon } from "@hugeicons/react"
+import {
+  ArrowRight01Icon,
+  Motorbike01Icon,
+  ShieldCheckIcon,
+} from "@hugeicons/core-free-icons"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
 
 export function CtaSection() {
   return (
@@ -33,9 +45,39 @@ export function CtaSection() {
             </p>
 
             {/* Action Buttons */}
+<<<<<<< HEAD
             <BottomCtaButtons />
 
 
+=======
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto pt-2">
+              <Link
+                href="#services"
+                className={cn(
+                  buttonVariants({ size: "lg" }),
+                  "w-full sm:w-auto px-8 text-base font-semibold shadow-md group flex items-center justify-center gap-2"
+                )}
+              >
+                <span>Start Booking Now</span>
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  size={18}
+                  className="transition-transform group-hover:translate-x-1"
+                />
+              </Link>
+
+              <Link
+                href="#become-rider"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "w-full sm:w-auto px-6 text-base font-medium flex items-center justify-center gap-2"
+                )}
+              >
+                <HugeiconsIcon icon={Motorbike01Icon} size={18} />
+                <span>Become a Rider / Provider</span>
+              </Link>
+            </div>
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
 
             {/* Sub-note */}
             <p className="text-xs text-muted-foreground pt-2">

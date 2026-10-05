@@ -3,8 +3,12 @@
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+<<<<<<< HEAD
 import { useAuth, useClerk } from "@clerk/nextjs"
 import { Menu01Icon, Cancel01Icon, ArrowRight01Icon, DashboardSquare01Icon } from "@hugeicons/core-free-icons"
+=======
+import { Menu01Icon, Cancel01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons"
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
 import { Button } from "@/components/ui/button"
 
 interface NavLink {
@@ -18,8 +22,11 @@ interface MobileNavProps {
 
 export function MobileNav({ navLinks }: MobileNavProps) {
   const [isOpen, setIsOpen] = React.useState(false)
+<<<<<<< HEAD
   const { isSignedIn, isLoaded } = useAuth()
   const { signOut } = useClerk()
+=======
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
 
   // Close on escape key
   React.useEffect(() => {
@@ -84,14 +91,22 @@ export function MobileNav({ navLinks }: MobileNavProps) {
                 Partner with HitsNaGo
               </span>
               <Link
+<<<<<<< HEAD
                 href="/#become-rider"
+=======
+                href="#become-rider"
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
                 onClick={() => setIsOpen(false)}
                 className="py-1.5 hover:text-foreground transition-colors"
               >
                 Become a Verified Rider
               </Link>
               <Link
+<<<<<<< HEAD
                 href="/#become-provider"
+=======
+                href="#become-provider"
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
                 onClick={() => setIsOpen(false)}
                 className="py-1.5 hover:text-foreground transition-colors"
               >
@@ -101,6 +116,7 @@ export function MobileNav({ navLinks }: MobileNavProps) {
           </nav>
 
           <div className="flex flex-col gap-3 pb-8 pt-4 border-t border-border">
+<<<<<<< HEAD
             {isLoaded && isSignedIn ? (
               <>
                 <Link href="/dashboard" onClick={() => setIsOpen(false)} className="w-full">
@@ -141,11 +157,29 @@ export function MobileNav({ navLinks }: MobileNavProps) {
                 </Link>
               </>
             )}
+=======
+            <Button
+              variant="outline"
+              className="w-full justify-center h-11"
+              onClick={() => setIsOpen(false)}
+            >
+              Log In
+            </Button>
+            <Button
+              className="w-full justify-center h-11 shadow-sm"
+              onClick={() => setIsOpen(false)}
+            >
+              Sign Up
+            </Button>
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
           </div>
         </div>
       )}
     </div>
   )
 }
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e

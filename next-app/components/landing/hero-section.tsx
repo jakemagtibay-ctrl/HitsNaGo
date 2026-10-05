@@ -1,5 +1,12 @@
+<<<<<<< HEAD
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
+=======
+import Link from "next/link"
+import { HugeiconsIcon } from "@hugeicons/react"
+import {
+  ArrowRight01Icon,
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
   ShieldCheckIcon,
   Motorbike01Icon,
   Car01Icon,
@@ -8,10 +15,16 @@ import {
   CheckmarkBadge01Icon,
   Clock01Icon,
 } from "@hugeicons/core-free-icons"
+<<<<<<< HEAD
 import { Badge } from "@/components/ui/badge"
 import { HeroCta } from "@/components/landing/hero-cta"
 
 
+=======
+import { buttonVariants } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
 
 export function HeroSection() {
   return (
@@ -65,9 +78,38 @@ export function HeroSection() {
             </p>
 
             {/* Primary & Secondary CTAs */}
+<<<<<<< HEAD
             <HeroCta />
 
 
+=======
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-2">
+              <Link
+                href="#services"
+                className={cn(
+                  buttonVariants({ size: "lg" }),
+                  "w-full sm:w-auto px-7 text-base font-semibold shadow-md group gap-2"
+                )}
+              >
+                <span>Book Now</span>
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  size={18}
+                  className="transition-transform group-hover:translate-x-1"
+                />
+              </Link>
+
+              <Link
+                href="#how-it-works"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "w-full sm:w-auto px-6 text-base font-medium"
+                )}
+              >
+                Explore Services
+              </Link>
+            </div>
+>>>>>>> 48a3f6cace40c9b4f4a0709513f15dae98bce03e
 
             {/* Community Proof Indicator */}
             <div className="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-xs text-muted-foreground">
