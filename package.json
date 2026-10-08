@@ -1,0 +1,9 @@
+﻿{
+  "name": "hitsnago-launcher",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix ./HitsNaGo-main run dev",
+    "build": "npm --prefix ./HitsNaGo-main run build",
+    "start": "npm --prefix ./HitsNaGo-main run start"
+  }
+}
