@@ -67,7 +67,10 @@ export function AdminVerificationQueue({ initialRequests }: AdminVerificationQue
                     <div className="flex justify-between">
                       <span>Submitted:</span>
                       <span className="text-foreground">
-                        {new Date(req.submittedAt).toLocaleDateString()}
+                        {new Date(req.submittedAt).toLocaleDateString("en-PH", {
+                          timeZone: "Asia/Manila",
+                          dateStyle: "short",
+                        })}
                       </span>
                     </div>
                   </div>

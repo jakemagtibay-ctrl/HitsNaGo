@@ -6,8 +6,10 @@ import {
   PackageIcon,
   ArrowRight01Icon,
   ArrowLeft01Icon,
+  ArrowUpDownIcon,
   Calendar01Icon,
   Clock01Icon,
+  Location01Icon,
 } from "@hugeicons/core-free-icons"
 import { LocationField } from "@/components/booking/location-field"
 import { ServiceAreaNotice } from "@/components/booking/service-area-notice"
@@ -21,10 +23,15 @@ import { Badge } from "@/components/ui/badge"
 import {
   PACKAGE_TYPES_CONFIG,
   PACKAGE_SIZE_TIERS,
-  calculateDeliveryEstimate,
 } from "@/lib/mock-data/delivery-options"
 import { BUTUAN_PRESET_LOCATIONS } from "@/lib/mock-data/butuan-locations"
 import { ACTIVE_SERVICE_AREA } from "@/lib/config/service-areas"
+import { ButuanCityMap } from "@/components/maps/butuan-city-map"
+import { resolveButuanCoordinates, reverseGeocode } from "@/lib/maps/geocode"
+import { getRoadRoute, type RouteResult } from "@/lib/maps/routing"
+import { calculateAuthoritativeDeliveryFare } from "@/lib/pricing/fare-engine"
+import { createDeliveryBooking } from "@/lib/actions/bookings"
+import type { MapMarker, MapRoute } from "@/components/maps/types"
 import type { LocationAddress } from "@/types/service"
 import type { PackageType } from "@/types/delivery"
 
@@ -67,21 +74,155 @@ export default function DeliveryBookingPage() {
   const [specialInstructions, setSpecialInstructions] = React.useState<string>("")
   const [step2Errors, setStep2Errors] = React.useState<Record<string, string>>({})
 
-  // Step 3 / 4 Confirmation
+  // Step 3 / 4 Confirmation & Submitting
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false)
+  const [submitError, setSubmitError] = React.useState<string>("")
   const [confirmedBookingId, setConfirmedBookingId] = React.useState<string>("")
 
-  // Distance & Price calculations (mock 5.4 km within Butuan City)
-  const distanceKm = 5.4
+  // Road Routing & Distance Telemetry
+  const [routeResult, setRouteResult] = React.useState<RouteResult | null>(null)
+  const [isRouting, setIsRouting] = React.useState<boolean>(false)
+
+  React.useEffect(() => {
+    let isCancelled = false
+    if (!pickupLocation || !deliveryLocation) {
+      Promise.resolve().then(() => {
+        if (!isCancelled) {
+          setRouteResult(null)
+          setIsRouting(false)
+        }
+      })
+      return () => { isCancelled = true }
+    }
+
+    const startCoords = pickupLocation.coordinates || resolveButuanCoordinates(pickupLocation.address)
+    const endCoords = deliveryLocation.coordinates || resolveButuanCoordinates(deliveryLocation.address)
+
+    if (startCoords.lat === endCoords.lat && startCoords.lng === endCoords.lng) {
+      Promise.resolve().then(() => {
+        if (!isCancelled) {
+          setRouteResult(null)
+          setIsRouting(false)
+        }
+      })
+      return () => { isCancelled = true }
+    }
+
+    Promise.resolve().then(() => {
+      if (!isCancelled) setIsRouting(true)
+    })
+    getRoadRoute(startCoords, endCoords)
+      .then((res) => {
+        if (!isCancelled) {
+          setRouteResult(res)
+          setIsRouting(false)
+        }
+      })
+      .catch((err) => {
+        console.error("Routing error:", err)
+        if (!isCancelled) setIsRouting(false)
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [pickupLocation, deliveryLocation])
+
+  const distanceKm = routeResult ? routeResult.distanceKm : 5.4
+  const estimatedDurationMinutes = routeResult ? routeResult.durationMin : 15
+
+  // Authoritative server-side pricing engine
   const feeEstimate = React.useMemo(() => {
-    return calculateDeliveryEstimate(
+    return calculateAuthoritativeDeliveryFare(
       packageType,
       sizeTierId,
-      estimatedWeightKg,
       distanceKm,
       isFragile
     )
-  }, [packageType, sizeTierId, estimatedWeightKg, distanceKm, isFragile])
+  }, [packageType, sizeTierId, distanceKm, isFragile])
+
+  const mapRoute: MapRoute | undefined = React.useMemo(() => {
+    if (!routeResult) return undefined
+    return {
+      coordinates: routeResult.coordinates,
+      distanceKm: routeResult.distanceKm,
+      durationMinutes: routeResult.durationMin,
+      isEstimated: routeResult.isFallback,
+    }
+  }, [routeResult])
+
+  const [activePinMode, setActivePinMode] = React.useState<"pickup" | "destination" | null>(null)
+
+  const handleMarkerDragEnd = React.useCallback(
+    async (type: "pickup" | "destination", coords: { lat: number; lng: number }) => {
+      try {
+        const rev = await reverseGeocode(coords.lat, coords.lng)
+        const updated: LocationAddress = {
+          title: rev.title,
+          address: rev.address,
+          landmark: rev.barangay ? `Brgy. ${rev.barangay}` : undefined,
+          city: rev.city || "Butuan City",
+          province: rev.province || "Agusan del Norte",
+          postalCode: rev.postalCode || "8600",
+          coordinates: coords,
+        }
+        if (type === "pickup") {
+          setPickupLocation(updated)
+        } else {
+          setDeliveryLocation(updated)
+        }
+      } catch {
+        if (type === "pickup") {
+          setPickupLocation((prev) => (prev ? { ...prev, coordinates: coords } : null))
+        } else {
+          setDeliveryLocation((prev) => (prev ? { ...prev, coordinates: coords } : null))
+        }
+      }
+    },
+    []
+  )
+
+  const handlePinAdjust = async (type: "pickup" | "destination", coords: { lat: number; lng: number }) => {
+    setActivePinMode(null)
+    await handleMarkerDragEnd(type, coords)
+  }
+
+  const [selectedMapPoint, setSelectedMapPoint] = React.useState<{ lat: number; lng: number; label: string } | null>(null)
+
+  const deliveryRouteMarkers: MapMarker[] = React.useMemo(() => {
+    const list: MapMarker[] = []
+    if (pickupLocation) {
+      const coords = pickupLocation.coordinates || resolveButuanCoordinates(pickupLocation.address)
+      list.push({
+        id: "del-pickup",
+        title: `Pickup: ${pickupLocation.title || pickupLocation.address}`,
+        description: `${senderName} (${senderPhone})`,
+        address: pickupLocation.address,
+        lat: coords.lat,
+        lng: coords.lng,
+        category: "pickup",
+        badgeText: "Collection Point (Draggable)",
+        draggable: true,
+        onDragEnd: (c) => handleMarkerDragEnd("pickup", c),
+      })
+    }
+    if (deliveryLocation) {
+      const coords = deliveryLocation.coordinates || resolveButuanCoordinates(deliveryLocation.address)
+      list.push({
+        id: "del-destination",
+        title: `Dropoff: ${deliveryLocation.title || deliveryLocation.address}`,
+        description: `${recipientName || "Recipient"} (${recipientPhone || "Contact"})`,
+        address: deliveryLocation.address,
+        lat: coords.lat,
+        lng: coords.lng,
+        category: "delivery",
+        badgeText: "Dropoff Point (Draggable)",
+        draggable: true,
+        onDragEnd: (c) => handleMarkerDragEnd("destination", c),
+      })
+    }
+    return list
+  }, [pickupLocation, deliveryLocation, senderName, senderPhone, recipientName, recipientPhone, handleMarkerDragEnd])
 
   // Validate Step 1
   const validateStep1 = (): boolean => {
@@ -129,20 +270,52 @@ export default function DeliveryBookingPage() {
     }
   }
 
-  const handleConfirmDelivery = () => {
+  const handleConfirmDelivery = async () => {
     setIsSubmitting(true)
-    setTimeout(() => {
-      const generatedId = `HNG-${Math.floor(100000 + Math.random() * 900000)}`
-      setConfirmedBookingId(generatedId)
-      setIsSubmitting(false)
+    setSubmitError("")
+
+    try {
+      const scheduledAt = new Date(`${pickupDate}T${pickupTime}:00`).toISOString()
+      const { booking, error } = await createDeliveryBooking({
+        pickup: pickupLocation?.address ?? "Butuan City",
+        destination: deliveryLocation?.address ?? "Butuan City",
+        scheduledAt,
+        packageType,
+        sizeTier: sizeTierId,
+        senderName,
+        senderPhone,
+        recipientName,
+        recipientPhone,
+        packageDescription: packageDescription || "Parcel Package",
+        isFragile,
+        estimatedFare: feeEstimate.totalFare,
+        notes: specialInstructions || undefined,
+        pickupCoords: pickupLocation?.coordinates,
+        destinationCoords: deliveryLocation?.coordinates,
+        distanceKm,
+        durationMin: estimatedDurationMinutes,
+      })
+
+      if (error || !booking) {
+        setSubmitError(error ?? "Unexpected error while booking delivery.")
+        return
+      }
+
+      setConfirmedBookingId(booking.reference)
       setCurrentStep(4)
       window.scrollTo({ top: 0, behavior: "smooth" })
-    }, 800)
+    } catch (err) {
+      setSubmitError("Network error. Please try again.")
+      console.error(err)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleReset = () => {
     setCurrentStep(1)
     setConfirmedBookingId("")
+    setSubmitError("")
   }
 
   // Confirmation view
@@ -154,7 +327,7 @@ export default function DeliveryBookingPage() {
           serviceType="delivery"
           serviceTitle={`Courier Delivery: ${packageDescription || "Parcel"}`}
           location={ACTIVE_SERVICE_AREA.label}
-          estimatedAmount={feeEstimate.estimatedTotal}
+          estimatedAmount={feeEstimate.totalFare}
           details={[
             { label: "Pickup From", value: `${senderName} (${pickupLocation?.title || pickupLocation?.address})` },
             { label: "Deliver To", value: `${recipientName} (${deliveryLocation?.title || deliveryLocation?.address})` },
@@ -163,7 +336,7 @@ export default function DeliveryBookingPage() {
             { label: "Size Tier", value: sizeTierId.toUpperCase() },
             { label: "Fragile Item", value: isFragile ? "Yes (Fragile handling required)" : "No" },
             { label: "Scheduled Pickup", value: `${pickupDate} at ${pickupTime}` },
-            { label: "Distance", value: `~${distanceKm} km (Within Butuan City)` },
+            { label: "Road Distance", value: `${distanceKm} km (~${estimatedDurationMinutes} mins)` },
             { label: "Payment Method", value: "Cash upon pickup or GCash" },
           ]}
           onBookAgain={handleReset}
@@ -265,14 +438,35 @@ export default function DeliveryBookingPage() {
                   <LocationField
                     id="delivery-pickup"
                     label="Pickup Address in Butuan City"
-                    placeholder="Enter pickup location in Butuan City..."
+                    placeholder="Enter pickup street, subdivision, or establishment..."
                     value={pickupLocation}
                     onChange={setPickupLocation}
                     error={step1Errors.pickupLocation}
                     required
+                    onPinOnMapClick={() => setActivePinMode(activePinMode === "pickup" ? null : "pickup")}
+                    isPinningOnMap={activePinMode === "pickup"}
                   />
                 </CardContent>
               </Card>
+
+              {/* Swap Button */}
+              <div className="flex justify-center -my-3 z-10">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const tempLoc = pickupLocation
+                    setPickupLocation(deliveryLocation)
+                    setDeliveryLocation(tempLoc)
+                  }}
+                  className="h-7 px-3 rounded-full text-[11px] font-semibold border-border/80 bg-card hover:bg-muted shadow-xs gap-1.5"
+                  title="Swap pickup and dropoff points"
+                >
+                  <HugeiconsIcon icon={ArrowUpDownIcon} size={13} className="text-primary" />
+                  <span>Swap Collection & Delivery</span>
+                </Button>
+              </div>
 
               {/* Recipient Details */}
               <Card className="border-border bg-card shadow-xs">
@@ -330,11 +524,13 @@ export default function DeliveryBookingPage() {
                   <LocationField
                     id="delivery-dropoff"
                     label="Delivery Address in Butuan City"
-                    placeholder="Enter delivery destination in Butuan City..."
+                    placeholder="Enter delivery street, subdivision, or establishment..."
                     value={deliveryLocation}
                     onChange={setDeliveryLocation}
                     error={step1Errors.deliveryLocation}
                     required
+                    onPinOnMapClick={() => setActivePinMode(activePinMode === "destination" ? null : "destination")}
+                    isPinningOnMap={activePinMode === "destination"}
                   />
 
                   <div className="flex flex-col gap-1.5">
@@ -350,20 +546,109 @@ export default function DeliveryBookingPage() {
                       className="h-10 w-full rounded-xl border border-border bg-background px-3 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
-
-                  {/* Continue Button */}
-                  <div className="pt-2 flex justify-end">
-                    <Button
-                      type="button"
-                      onClick={handleNextFromStep1}
-                      className="w-full sm:w-auto font-semibold shadow-xs gap-2"
-                    >
-                      <span>Continue to Package Details</span>
-                      <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
+
+              {/* Interactive Butuan Route Map & Landmark Picker */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <HugeiconsIcon icon={Location01Icon} size={14} className="text-primary" />
+                    Butuan City Delivery Road Route & Landmarks
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {isRouting ? "Calculating road route..." : "Drag pins or click map to set exact GPS coordinates"}
+                  </span>
+                </div>
+
+                <ButuanCityMap
+                  title="Delivery Transit Route & Coverage Map"
+                  description="Butuan City, Agusan del Norte • Drag pins or click map to set exact meter-level GPS locations"
+                  height="340px"
+                  markers={deliveryRouteMarkers}
+                  route={mapRoute}
+                  showLandmarks={true}
+                  showControls={true}
+                  enableLocationSelect={true}
+                  activePinMode={activePinMode}
+                  onPinAdjust={handlePinAdjust}
+                  selectedLocation={selectedMapPoint}
+                  onLocationSelect={(point) => {
+                    setSelectedMapPoint({
+                      lat: point.lat,
+                      lng: point.lng,
+                      label: point.label || `Location (${point.lat.toFixed(4)}, ${point.lng.toFixed(4)})`,
+                    })
+                  }}
+                  roleContext="customer"
+                  footerContent={
+                    selectedMapPoint ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-muted/30 p-2.5 rounded-xl border border-border/60">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground">{selectedMapPoint.label}</span>
+                          <span className="text-muted-foreground font-mono text-[11px]">
+                            {selectedMapPoint.lat.toFixed(4)}°N, {selectedMapPoint.lng.toFixed(4)}°E
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                            onClick={async () => {
+                              const rev = await reverseGeocode(selectedMapPoint.lat, selectedMapPoint.lng)
+                              setPickupLocation({
+                                title: rev.title,
+                                address: rev.address,
+                                landmark: rev.barangay ? `Brgy. ${rev.barangay}` : undefined,
+                                city: rev.city || "Butuan City",
+                                province: rev.province || "Agusan del Norte",
+                                postalCode: rev.postalCode || "8600",
+                                coordinates: { lat: selectedMapPoint.lat, lng: selectedMapPoint.lng },
+                              })
+                              setSelectedMapPoint(null)
+                            }}
+                          >
+                            Set Pickup
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 text-xs bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+                            onClick={async () => {
+                              const rev = await reverseGeocode(selectedMapPoint.lat, selectedMapPoint.lng)
+                              setDeliveryLocation({
+                                title: rev.title,
+                                address: rev.address,
+                                landmark: rev.barangay ? `Brgy. ${rev.barangay}` : undefined,
+                                city: rev.city || "Butuan City",
+                                province: rev.province || "Agusan del Norte",
+                                postalCode: rev.postalCode || "8600",
+                                coordinates: { lat: selectedMapPoint.lat, lng: selectedMapPoint.lng },
+                              })
+                              setSelectedMapPoint(null)
+                            }}
+                          >
+                            Set Dropoff
+                          </Button>
+                        </div>
+                      </div>
+                    ) : undefined
+                  }
+                />
+              </div>
+
+              {/* Continue Button */}
+              <div className="pt-2 flex justify-end">
+                <Button
+                  type="button"
+                  onClick={handleNextFromStep1}
+                  className="w-full sm:w-auto font-semibold shadow-xs gap-2"
+                >
+                  <span>Continue to Package Details</span>
+                  <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+                </Button>
+              </div>
             </div>
           )}
 
@@ -632,6 +917,13 @@ export default function DeliveryBookingPage() {
                   </div>
 
                   <div className="flex items-start justify-between pb-3 border-b border-border/60">
+                    <span className="text-muted-foreground">Road Distance</span>
+                    <span className="font-semibold text-foreground">
+                      {distanceKm} km (~{estimatedDurationMinutes} mins)
+                    </span>
+                  </div>
+
+                  <div className="flex items-start justify-between pb-3 border-b border-border/60">
                     <span className="text-muted-foreground">Package Details</span>
                     <span className="font-semibold text-foreground">
                       {packageDescription} ({packageType.toUpperCase()}, ~{estimatedWeightKg} kg)
@@ -665,22 +957,28 @@ export default function DeliveryBookingPage() {
                 {/* Price Breakdown Component */}
                 <PriceSummary
                   items={[
-                    { label: "Base Delivery Fee", amount: feeEstimate.baseFee },
+                    { label: "Base Delivery Fee", amount: feeEstimate.baseFare },
                     {
-                      label: "Estimated Distance (~5.4 km)",
-                      amount: feeEstimate.distanceFee,
-                      subtitle: "Point-to-point transit in Butuan City",
+                      label: `Road Distance (${feeEstimate.distanceKm} km)`,
+                      amount: feeEstimate.distanceCharge,
+                      subtitle: routeResult?.isFallback
+                        ? "City municipal grid estimate"
+                        : "Computed via Butuan City road network",
                     },
-                    ...(feeEstimate.sizeSurcharge > 0
-                      ? [{ label: `Package Size Tier (${sizeTierId})`, amount: feeEstimate.sizeSurcharge }]
-                      : []),
-                    ...(feeEstimate.fragileHandlingFee > 0
-                      ? [{ label: "Fragile Item Surcharge", amount: feeEstimate.fragileHandlingFee }]
-                      : []),
+                    ...(feeEstimate.surchargeDetails?.map((s) => ({
+                      label: s.label,
+                      amount: s.amount,
+                    })) || []),
                   ]}
-                  totalAmount={feeEstimate.estimatedTotal}
-                  totalLabel="Estimated Delivery Fee"
+                  totalAmount={feeEstimate.totalFare}
+                  totalLabel="Authoritative Estimated Delivery Fee"
                 />
+
+                {submitError && (
+                  <p className="text-xs text-destructive rounded-xl border border-destructive/30 bg-destructive/10 p-3">
+                    {submitError}
+                  </p>
+                )}
 
                 {/* Actions */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
@@ -726,7 +1024,7 @@ export default function DeliveryBookingPage() {
             date={pickupDate}
             time={pickupTime}
             vehicleOrItemName={`Package: ${packageType.toUpperCase()} (~${estimatedWeightKg} kg)`}
-            estimatedTotal={feeEstimate.estimatedTotal}
+            estimatedTotal={feeEstimate.totalFare}
             totalLabel="Estimated Delivery Fee"
             showActions={false}
           />

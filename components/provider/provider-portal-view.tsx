@@ -7,11 +7,20 @@ import {
   Cancel01Icon,
   Calendar01Icon,
   PinLocation01Icon,
+  Alert01Icon,
 } from "@hugeicons/core-free-icons"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import type { Provider } from "@/lib/actions/bookings"
+import { ButuanCityMap } from "@/components/maps/butuan-city-map"
+import { resolveButuanCoordinates } from "@/lib/maps/geocode"
+import { parseBookingCancellationInfo } from "@/lib/cancellations/metadata"
+import { ProviderIncidentDialog } from "@/components/provider/provider-incident-dialog"
+import { ProviderUnitModal } from "@/components/provider/provider-unit-modal"
+import type { MapMarker } from "@/components/maps/types"
+import type { Booking, Provider } from "@/lib/actions/bookings"
+import type { RentalUnit } from "@/types/rental"
+import type { ButuanRentalItem } from "@/lib/mock-data/butuan-rental-listings"
 
 interface RentalRequest {
   id: string
@@ -52,12 +61,29 @@ const INITIAL_REQUESTS: RentalRequest[] = [
 
 interface ProviderPortalViewProps {
   provider: Provider
+  initialBookings?: Booking[]
+  initialInventory?: { listing: ButuanRentalItem; units: RentalUnit[] }[]
 }
 
-export function ProviderPortalView({ provider }: ProviderPortalViewProps) {
-  const [activeTab, setActiveTab] = React.useState<"listings" | "requests">("listings")
+export function ProviderPortalView({
+  provider,
+  initialBookings = [],
+  initialInventory = [],
+}: ProviderPortalViewProps) {
+  const [activeTab, setActiveTab] = React.useState<"bookings" | "listings" | "requests">(
+    initialBookings.length > 0 ? "bookings" : "listings"
+  )
+  const [bookings, setBookings] = React.useState<Booking[]>(initialBookings)
+  const [inventory, setInventory] = React.useState(initialInventory)
   const [requests, setRequests] = React.useState<RentalRequest[]>(INITIAL_REQUESTS)
   const [message, setMessage] = React.useState<string | null>(null)
+
+  // Unit management modal state
+  const [editingUnit, setEditingUnit] = React.useState<{ unit: RentalUnit; listingTitle: string } | null>(null)
+
+  // Incident dialog state
+  const [selectedBookingForIncident, setSelectedBookingForIncident] = React.useState<Booking | null>(null)
+  const [isIncidentDialogOpen, setIsIncidentDialogOpen] = React.useState<boolean>(false)
 
   const handleAction = (id: string, newStatus: "accepted" | "declined") => {
     setRequests((prev) =>
@@ -67,24 +93,73 @@ export function ProviderPortalView({ provider }: ProviderPortalViewProps) {
     setTimeout(() => setMessage(null), 4000)
   }
 
-  const listings = [
-    {
-      id: "lst-1",
-      title: "Toyota HiAce Commuter 15-Seater Van",
-      category: "Passenger Van",
-      pricePerDay: 2800,
-      status: "Available",
-      location: "Langihan, Butuan City",
-    },
-    {
-      id: "lst-2",
-      title: "Honda CRF150L Dual Sport Trail Motorcycle",
-      category: "Motorcycle",
-      pricePerDay: 900,
-      status: "Rented",
-      location: "Brgy. Holy Redeemer, Butuan City",
-    },
-  ]
+  const providerMarkers: MapMarker[] = React.useMemo(() => {
+    const listMarkers: MapMarker[] = inventory.map(({ listing, units }) => {
+      const address = listing.pickupAddress || "Butuan City"
+      const coords = resolveButuanCoordinates(address)
+      const availCount = units.filter((u) => u.status === "available").length
+      return {
+        id: `provider-${listing.id}`,
+        title: listing.title,
+        description: `Rate: ₱${listing.pricePerDay.toLocaleString("en-PH")}/day • ${availCount} of ${units.length} units available`,
+        address,
+        lat: coords.lat,
+        lng: coords.lng,
+        category: "listing" as const,
+        badgeText: "Rental Fleet",
+      }
+    })
+
+    const reqMarkers: MapMarker[] = requests.map((r) => {
+      const coords = resolveButuanCoordinates(r.location)
+      return {
+        id: `request-${r.id}`,
+        title: `Request: ${r.itemName}`,
+        description: `Customer: ${r.customerName} (${r.startDate} to ${r.endDate})`,
+        address: r.location,
+        lat: coords.lat,
+        lng: coords.lng,
+        category: "pickup" as const,
+        badgeText: "Handover / Pickup",
+      }
+    })
+
+    const bookingMarkers: MapMarker[] = bookings.map((b) => {
+      const coords = resolveButuanCoordinates(b.pickup)
+      return {
+        id: `booking-${b.id}`,
+        title: `Rental: ${b.reference}`,
+        description: `Customer: ${b.customer_name} • Status: ${b.status}`,
+        address: b.pickup,
+        lat: coords.lat,
+        lng: coords.lng,
+        category: "pickup" as const,
+        badgeText: `Rental Booking (${b.status})`,
+      }
+    })
+
+    return [...listMarkers, ...reqMarkers, ...bookingMarkers]
+  }, [inventory, requests, bookings])
+
+  const handleOpenIncidentDialog = (booking: Booking) => {
+    setSelectedBookingForIncident(booking)
+    setIsIncidentDialogOpen(true)
+  }
+
+  const handleIncidentSuccess = () => {
+    setIsIncidentDialogOpen(false)
+    if (selectedBookingForIncident) {
+      if (selectedBookingForIncident.status === "in_progress") {
+        setMessage("Emergency incident successfully escalated to Admin Dispatch.")
+      } else {
+        setMessage("Rental reservation cancelled successfully. Calendar availability released.")
+        setBookings((prev) =>
+          prev.map((b) => (b.id === selectedBookingForIncident.id ? { ...b, status: "cancelled" } : b))
+        )
+      }
+      setTimeout(() => setMessage(null), 5000)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -92,13 +167,49 @@ export function ProviderPortalView({ provider }: ProviderPortalViewProps) {
         Active Provider Account: <strong className="text-foreground">{provider.business_name || provider.name}</strong> ({provider.email})
       </div>
       {message && (
-        <div className="rounded-xl border border-primary/20 bg-primary/10 p-3 text-xs text-primary">
-          {message}
+        <div className="rounded-xl border border-primary/20 bg-primary/10 p-3 text-xs text-primary font-medium flex items-center gap-2">
+          <HugeiconsIcon icon={CheckmarkCircle01Icon} size={15} />
+          <span>{message}</span>
         </div>
       )}
 
+      {/* Fleet & Location Coverage Map */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
+            <h3 className="font-heading text-sm font-bold text-foreground">
+              Fleet Coverage & Handover Locations
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Geographic distribution of your rental vehicles, equipment hubs, and customer handover locations in Butuan City.
+            </p>
+          </div>
+        </div>
+
+        <ButuanCityMap
+          title="Rental Fleet & Handover Map"
+          description="Butuan City, Agusan del Norte • Authorized listing points & customer requests"
+          height="400px"
+          markers={providerMarkers}
+          showLandmarks={true}
+          showControls={true}
+          roleContext="provider"
+        />
+      </div>
+
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("bookings")}
+          className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+            activeTab === "bookings"
+              ? "bg-primary text-primary-foreground shadow-xs"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          }`}
+        >
+          Active Bookings ({bookings.length})
+        </button>
         <button
           type="button"
           onClick={() => setActiveTab("listings")}
@@ -108,7 +219,7 @@ export function ProviderPortalView({ provider }: ProviderPortalViewProps) {
               : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
           }`}
         >
-          My Listings ({listings.length})
+          Fleet Inventory & Units ({inventory.reduce((acc, curr) => acc + curr.units.length, 0)})
         </button>
         <button
           type="button"
@@ -123,32 +234,263 @@ export function ProviderPortalView({ provider }: ProviderPortalViewProps) {
         </button>
       </div>
 
-      {activeTab === "listings" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {listings.map((item) => (
-            <Card key={item.id} className="border-border/80 bg-card p-5 flex flex-col justify-between gap-4">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <Badge variant="outline" className="text-[10px] uppercase font-bold text-muted-foreground">
-                    {item.category}
-                  </Badge>
-                  <Badge className={item.status === "Available" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"}>
-                    {item.status}
-                  </Badge>
-                </div>
-                <h4 className="font-heading text-sm font-bold text-foreground">{item.title}</h4>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <HugeiconsIcon icon={PinLocation01Icon} size={13} className="text-primary" />
-                  <span>{item.location}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-3 border-t border-border/50 text-xs">
-                <span className="text-muted-foreground">Rate</span>
-                <span className="font-mono font-bold text-foreground">₱{item.pricePerDay.toLocaleString("en-PH")} / day</span>
-              </div>
+      {activeTab === "bookings" ? (
+        <div className="flex flex-col gap-4">
+          {bookings.length === 0 ? (
+            <Card className="p-8 text-center border-border/80 bg-card text-muted-foreground text-xs">
+              No confirmed rental bookings yet in system. Customer reservations will appear here.
             </Card>
-          ))}
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {bookings.map((booking) => {
+                const parsed = parseBookingCancellationInfo(booking.notes)
+                const isCancelled = booking.status === "cancelled"
+                const isInProgress = booking.status === "in_progress"
+                const isEligibleToCancel = ["pending", "assigned", "accepted"].includes(booking.status)
+
+                return (
+                  <Card key={booking.id} className="border-border/80 bg-card p-5 flex flex-col justify-between gap-4">
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-xs font-bold text-primary">{booking.reference}</span>
+                        <Badge
+                          className={
+                            isCancelled
+                              ? "bg-destructive/10 text-destructive border-destructive/20"
+                              : isInProgress
+                              ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                          }
+                        >
+                          {booking.status}
+                        </Badge>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <span className="font-heading text-sm font-bold text-foreground">
+                          {booking.vehicle_category?.toUpperCase() || "Rental Vehicle"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          Customer: <strong className="text-foreground">{booking.customer_name}</strong>
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <HugeiconsIcon icon={PinLocation01Icon} size={13} className="text-primary shrink-0" />
+                          <span className="truncate">Handover: {booking.pickup}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <HugeiconsIcon icon={Calendar01Icon} size={13} className="shrink-0" />
+                          <span>
+                            Scheduled: {new Date(booking.scheduled_at).toLocaleDateString("en-PH", { dateStyle: "medium" })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Notes snippet */}
+                      {booking.notes && (
+                        <p className="text-[11px] text-muted-foreground/80 line-clamp-2 bg-muted/30 p-2 rounded-lg">
+                          {booking.notes.replace(/\[CANCELLATION:.*?\]/g, "").replace(/\[EMERGENCY:.*?\]/g, "")}
+                        </p>
+                      )}
+
+                      {/* Cancellation banner */}
+                      {isCancelled && parsed.cancellation && (
+                        <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-[11px] text-destructive flex flex-col gap-1">
+                          <span className="font-bold">Cancelled by {parsed.cancellation.cancelledBy} ({parsed.cancellation.cancelledByRole})</span>
+                          <span>Reason: {parsed.cancellation.reason}</span>
+                          {parsed.cancellation.explanation && <span>Note: {parsed.cancellation.explanation}</span>}
+                          <span className="text-[10px] opacity-75">
+                            {new Date(parsed.cancellation.cancelledAt).toLocaleString("en-PH")}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Emergency banner */}
+                      {parsed.emergency && (
+                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[11px] text-amber-700 dark:text-amber-300 flex flex-col gap-1">
+                          <span className="font-bold">⚠️ Urgent Incident: {parsed.emergency.category}</span>
+                          <span>{parsed.emergency.description}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-border/50 text-xs">
+                      <span className="font-mono font-bold text-foreground">
+                        ₱{Number(booking.estimated_fare).toLocaleString("en-PH")}
+                      </span>
+
+                      <div className="flex items-center gap-2">
+                        {isEligibleToCancel && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2.5 gap-1 text-destructive hover:bg-destructive/10"
+                            onClick={() => handleOpenIncidentDialog(booking)}
+                          >
+                            <HugeiconsIcon icon={Cancel01Icon} size={12} />
+                            Cancel Rental
+                          </Button>
+                        )}
+
+                        {isInProgress && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 text-xs px-2.5 gap-1"
+                            onClick={() => handleOpenIncidentDialog(booking)}
+                          >
+                            <HugeiconsIcon icon={Alert01Icon} size={12} />
+                            Report Breakdown
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ) : activeTab === "listings" ? (
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-1">
+            <h3 className="font-heading text-sm font-bold text-foreground">
+              Vehicle Model Fleet & Physical Units Inventory
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Manage individual physical units for each vehicle model. Configure maintenance intervals or toggle operational availability to prevent customer scheduling conflicts.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-5">
+            {inventory.length === 0 ? (
+              <Card className="p-8 text-center border-border/80 bg-card text-muted-foreground text-xs">
+                No fleet inventory models registered. Vehicle models and equipment units will appear here.
+              </Card>
+            ) : (
+              inventory.map(({ listing, units }) => {
+                const total = units.length
+                const available = units.filter((u) => u.status === "available").length
+                const maintenance = units.filter((u) => u.status === "maintenance").length
+                const unavailable = units.filter((u) => u.status === "unavailable").length
+
+                return (
+                  <Card key={listing.id} className="border-border/80 bg-card overflow-hidden shadow-xs flex flex-col gap-4 p-5">
+                    {/* Model Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/60">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider">
+                            {listing.category}
+                          </Badge>
+                          <span className="font-mono text-xs font-bold text-primary">
+                            ₱{listing.pricePerDay.toLocaleString("en-PH")} / day
+                          </span>
+                        </div>
+                        <h4 className="font-heading text-base font-bold text-foreground">
+                          {listing.title}
+                        </h4>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <HugeiconsIcon icon={PinLocation01Icon} size={13} className="text-primary shrink-0" />
+                          <span>{listing.pickupAddress}</span>
+                        </div>
+                      </div>
+
+                      {/* Model Fleet Summary Pills */}
+                      <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-auto">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+                          {available} Available
+                        </span>
+                        {maintenance > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-full">
+                            {maintenance} In Maintenance
+                          </span>
+                        )}
+                        {unavailable > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-destructive/10 text-destructive border border-destructive/20 px-2.5 py-1 rounded-full">
+                            {unavailable} Unavailable
+                          </span>
+                        )}
+                        <span className="text-xs text-muted-foreground font-semibold ml-1">
+                          ({total} total units)
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Physical Units List */}
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Physical Units & Assigned Equipment:
+                      </span>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {units.map((unit) => {
+                          const isAvail = unit.status === "available"
+                          const isMaint = unit.status === "maintenance"
+                          const isUnavail = unit.status === "unavailable"
+
+                          return (
+                            <div
+                              key={unit.id}
+                              className="rounded-xl border border-border/80 bg-muted/20 p-3.5 flex flex-col justify-between gap-3 text-xs"
+                            >
+                              <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-bold text-foreground">
+                                    {unit.unitIdentifier}
+                                  </span>
+                                  {isAvail && (
+                                    <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-semibold text-[10px]">
+                                      Available
+                                    </Badge>
+                                  )}
+                                  {isMaint && (
+                                    <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-semibold text-[10px]">
+                                      Maintenance
+                                    </Badge>
+                                  )}
+                                  {isUnavail && (
+                                    <Badge className="bg-destructive/10 text-destructive border-destructive/20 font-semibold text-[10px]">
+                                      Unavailable
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                {isMaint && (
+                                  <div className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 p-2 rounded-lg">
+                                    <p className="font-semibold line-clamp-1">
+                                      {unit.maintenanceReason ? `Reason: ${unit.maintenanceReason}` : "Under repair / maintenance"}
+                                    </p>
+                                    {unit.maintenanceStart && unit.maintenanceEnd && (
+                                      <p className="text-[10px] opacity-80 mt-0.5">
+                                        {new Date(unit.maintenanceStart).toLocaleDateString("en-PH")} → {new Date(unit.maintenanceEnd).toLocaleDateString("en-PH")}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditingUnit({ unit, listingTitle: listing.title })}
+                                className="h-7 text-xs font-semibold gap-1.5 w-full mt-1"
+                              >
+                                <span>Manage Unit Status</span>
+                              </Button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </Card>
+                )
+              })
+            )}
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -200,6 +542,37 @@ export function ProviderPortalView({ provider }: ProviderPortalViewProps) {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Provider Unit Management Modal */}
+      {editingUnit && (
+        <ProviderUnitModal
+          key={editingUnit.unit.id}
+          unit={editingUnit.unit}
+          listingTitle={editingUnit.listingTitle}
+          isOpen={Boolean(editingUnit)}
+          onClose={() => setEditingUnit(null)}
+          onSuccess={(updatedUnit) => {
+            setInventory((prev) =>
+              prev.map((item) => ({
+                ...item,
+                units: item.units.map((u) => (u.id === updatedUnit.id ? updatedUnit : u)),
+              }))
+            )
+            setMessage(`Unit "${updatedUnit.unitIdentifier}" status updated to ${updatedUnit.status.toUpperCase()}.`)
+            setTimeout(() => setMessage(null), 4000)
+          }}
+        />
+      )}
+
+      {/* Provider Incident Dialog */}
+      {selectedBookingForIncident && (
+        <ProviderIncidentDialog
+          booking={selectedBookingForIncident}
+          isOpen={isIncidentDialogOpen}
+          onClose={() => setIsIncidentDialogOpen(false)}
+          onSuccess={handleIncidentSuccess}
+        />
       )}
     </div>
   )

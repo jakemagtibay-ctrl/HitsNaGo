@@ -6,23 +6,39 @@ import {
   PinLocation01Icon,
   UserCheck01Icon,
   RefreshIcon,
+  Alert01Icon,
+  Clock01Icon,
 } from "@hugeicons/core-free-icons"
 import { AdminFilterBar } from "@/components/admin/admin-filter-bar"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import type { Booking, Rider } from "@/lib/actions/bookings"
 import { assignRider, getAllBookings, getAvailableRiders } from "@/lib/actions/bookings"
+import { getBookingIncidents } from "@/lib/actions/cancellations"
+import {
+  parseBookingCancellationInfo,
+  type BookingIncident,
+} from "@/lib/cancellations/metadata"
+import { AdminIncidentResolutionModal } from "@/components/admin/admin-incident-resolution-modal"
 
 interface AdminBookingsTableProps {
   initialBookings: Booking[]
+  initialIncidents?: BookingIncident[]
 }
 
-export function AdminBookingsTable({ initialBookings }: AdminBookingsTableProps) {
+export function AdminBookingsTable({
+  initialBookings,
+  initialIncidents = [],
+}: AdminBookingsTableProps) {
   const [bookings, setBookings] = React.useState<Booking[]>(initialBookings)
+  const [incidents, setIncidents] = React.useState<BookingIncident[]>(initialIncidents)
   const [searchQuery, setSearchQuery] = React.useState<string>("")
   const [serviceFilter, setServiceFilter] = React.useState<string>("all")
   const [statusFilter, setStatusFilter] = React.useState<string>("all")
+
+  // Rider assignment modal
   const [assigningBooking, setAssigningBooking] = React.useState<Booking | null>(null)
   const [availableRiders, setAvailableRiders] = React.useState<Rider[]>([])
   const [isLoadingRiders, setIsLoadingRiders] = React.useState<boolean>(false)
@@ -31,26 +47,65 @@ export function AdminBookingsTable({ initialBookings }: AdminBookingsTableProps)
   const [assignError, setAssignError] = React.useState<string>("")
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false)
 
+  // Incident resolution modal
+  const [selectedIncident, setSelectedIncident] = React.useState<BookingIncident | null>(null)
+  const [isIncidentModalOpen, setIsIncidentModalOpen] = React.useState<boolean>(false)
+
+  // Quick count of active incidents
+  const activeIncidents = React.useMemo(() => {
+    return incidents.filter((i) => i.status === "open" || i.status === "investigating")
+  }, [incidents])
+
+  // Map incidents by booking_id for quick lookup
+  const incidentsByBookingId = React.useMemo(() => {
+    const map = new Map<string, BookingIncident>()
+    for (const inc of incidents) {
+      if (!map.has(inc.booking_id)) {
+        map.set(inc.booking_id, inc)
+      }
+    }
+    return map
+  }, [incidents])
+
   const filteredBookings = React.useMemo(() => {
     return bookings.filter((b) => {
+      const parsed = parseBookingCancellationInfo(b.notes)
+      const hasIncident = Boolean(parsed.emergency || incidentsByBookingId.has(b.id))
+
       const matchSearch =
         b.reference.toLowerCase().includes(searchQuery.toLowerCase()) ||
         b.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         b.pickup.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (b.rider?.name ?? "").toLowerCase().includes(searchQuery.toLowerCase())
+        (b.rider?.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (parsed.cancellation?.reason || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (parsed.emergency?.category || "").toLowerCase().includes(searchQuery.toLowerCase())
 
       const matchService = serviceFilter === "all" || b.service_type === serviceFilter
-      const matchStatus = statusFilter === "all" || b.status === statusFilter
+
+      let matchStatus = true
+      if (statusFilter === "all") {
+        matchStatus = true
+      } else if (statusFilter === "incident") {
+        matchStatus = hasIncident
+      } else if (statusFilter === "unassigned") {
+        matchStatus = (b.status === "pending" || !b.rider_id) && b.status !== "cancelled" && b.status !== "completed"
+      } else {
+        matchStatus = b.status === statusFilter
+      }
 
       return matchSearch && matchService && matchStatus
     })
-  }, [bookings, searchQuery, serviceFilter, statusFilter])
+  }, [bookings, searchQuery, serviceFilter, statusFilter, incidentsByBookingId])
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      const data = await getAllBookings()
-      setBookings(data)
+      const [bookingsData, incidentsData] = await Promise.all([
+        getAllBookings(),
+        getBookingIncidents(),
+      ])
+      setBookings(bookingsData)
+      setIncidents(incidentsData)
     } catch (err) {
       console.error("[handleRefresh]", err)
     } finally {
@@ -65,7 +120,6 @@ export function AdminBookingsTable({ initialBookings }: AdminBookingsTableProps)
     setIsLoadingRiders(true)
     try {
       const riders = await getAvailableRiders(booking.scheduled_at)
-      // If a rider is already assigned, ensure they are also included in the list for reassignment
       if (booking.rider && !riders.some((r) => r.id === booking.rider_id)) {
         riders.unshift({
           id: booking.rider.id,
@@ -100,7 +154,6 @@ export function AdminBookingsTable({ initialBookings }: AdminBookingsTableProps)
       return
     }
 
-    // Optimistically update local state
     const assignedRiderObj = availableRiders.find((r) => r.id === selectedRiderId)
     setBookings((prev) =>
       prev.map((b) => {
@@ -128,8 +181,80 @@ export function AdminBookingsTable({ initialBookings }: AdminBookingsTableProps)
     setIsAssigning(false)
   }
 
+  const handleOpenIncidentModal = (incident: BookingIncident) => {
+    setSelectedIncident(incident)
+    setIsIncidentModalOpen(true)
+  }
+
+  const handleCreateOrOpenBookingIncident = (booking: Booking) => {
+    const existing = incidentsByBookingId.get(booking.id)
+    if (existing) {
+      handleOpenIncidentModal(existing)
+      return
+    }
+
+    // Synthesize an incident object for direct admin review
+    const parsed = parseBookingCancellationInfo(booking.notes)
+    const synthetic: BookingIncident = {
+      id: `review_${booking.id}`,
+      booking_id: booking.id,
+      incident_type: parsed.emergency ? "emergency_report" : "customer_cancellation",
+      severity: parsed.emergency?.severity || "standard",
+      status: parsed.emergency?.status || (booking.status === "cancelled" ? "closed" : "open"),
+      category: parsed.emergency?.category || parsed.cancellation?.reason || "Booking Review",
+      reason: parsed.emergency?.category || parsed.cancellation?.reason || "Administrative Investigation",
+      description: parsed.emergency?.description || parsed.cancellation?.explanation || "Direct investigation opened by administrator.",
+      reporter_id: "admin",
+      reporter_name: parsed.cancellation?.cancelledBy || parsed.emergency?.reporterName || "HitsNaGo System",
+      reporter_role: parsed.cancellation?.cancelledByRole || parsed.emergency?.reporterRole || "admin",
+      previous_status: parsed.cancellation?.previousStatus || booking.status,
+      resulting_status: booking.status,
+      created_at: parsed.cancellation?.cancelledAt || parsed.emergency?.reportedAt || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      booking,
+    }
+
+    handleOpenIncidentModal(synthetic)
+  }
+
   return (
     <>
+      {/* Urgent Dispatch & Emergencies Banner */}
+      {activeIncidents.length > 0 && (
+        <Card className="border-destructive/40 bg-destructive/5 p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="size-9 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center shrink-0 mt-0.5">
+              <HugeiconsIcon icon={Alert01Icon} size={20} className="animate-pulse" />
+            </div>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="font-heading text-sm font-bold text-destructive">
+                  {activeIncidents.length} Urgent Dispatch Alert{activeIncidents.length > 1 ? "s" : ""}
+                </span>
+                <Badge variant="destructive" className="text-[10px] font-mono px-1.5 py-0 uppercase">
+                  Action Required
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Rider emergency withdrawal, in-transit incident, or parcel custody alert awaiting admin resolution.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-8 text-xs font-semibold gap-1.5 shadow-xs"
+              onClick={() => handleOpenIncidentModal(activeIncidents[0])}
+            >
+              <HugeiconsIcon icon={Alert01Icon} size={14} />
+              Resolve Incident ({activeIncidents[0].booking?.reference || activeIncidents[0].category})
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between -mb-2">
         <h3 className="font-heading text-base font-bold text-foreground">All Bookings</h3>
         <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing} className="gap-1.5 text-xs">
@@ -142,7 +267,7 @@ export function AdminBookingsTable({ initialBookings }: AdminBookingsTableProps)
       <AdminFilterBar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Search reference, customer, location, or rider..."
+        searchPlaceholder="Search reference, customer, location, rider, or cancellation reason..."
         categoryFilter={serviceFilter}
         onCategoryChange={setServiceFilter}
         categoryOptions={[
@@ -155,6 +280,8 @@ export function AdminBookingsTable({ initialBookings }: AdminBookingsTableProps)
         onStatusChange={setStatusFilter}
         statusOptions={[
           { id: "all", label: "All Statuses" },
+          { id: "incident", label: "🚨 Emergencies & Incidents" },
+          { id: "unassigned", label: "📡 Broadcasted / Unclaimed" },
           { id: "pending", label: "Pending" },
           { id: "assigned", label: "Assigned" },
           { id: "accepted", label: "Accepted" },
@@ -182,7 +309,7 @@ export function AdminBookingsTable({ initialBookings }: AdminBookingsTableProps)
                 <th className="py-3 px-4">Pickup</th>
                 <th className="py-3 px-4">Destination</th>
                 <th className="py-3 px-4">Scheduled</th>
-                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4">Status & Incidents</th>
                 <th className="py-3 px-4">Fare</th>
                 <th className="py-3 px-4">Assigned Rider</th>
                 <th className="py-3 px-4 text-right">Action</th>
@@ -192,82 +319,147 @@ export function AdminBookingsTable({ initialBookings }: AdminBookingsTableProps)
               {filteredBookings.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-12 text-center text-muted-foreground">
-                    No bookings found in database.
+                    No bookings found matching filters.
                   </td>
                 </tr>
               ) : (
-                filteredBookings.map((b) => (
-                  <tr key={b.id} className="hover:bg-muted/30 transition-colors group">
-                    <td className="py-3.5 px-4 font-mono font-bold text-foreground group-hover:text-primary transition-colors">
-                      {b.reference}
-                    </td>
+                filteredBookings.map((b) => {
+                  const parsed = parseBookingCancellationInfo(b.notes)
+                  const incident = incidentsByBookingId.get(b.id)
+                  const isCancelled = b.status === "cancelled"
+                  const hasEmergency = Boolean(parsed.emergency || incident?.incident_type === "emergency_report")
 
-                    <td className="py-3.5 px-4">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-foreground">{b.customer_name}</span>
-                        <span className="text-[10px] text-muted-foreground">{b.customer_email}</span>
-                      </div>
-                    </td>
+                  return (
+                    <tr key={b.id} className="hover:bg-muted/30 transition-colors group">
+                      <td className="py-3.5 px-4 font-mono font-bold text-foreground group-hover:text-primary transition-colors">
+                        {b.reference}
+                      </td>
 
-                    <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold uppercase text-foreground">
-                        {b.service_type}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-muted-foreground max-w-[150px]">
-                      <div className="flex items-start gap-1">
-                        <HugeiconsIcon icon={PinLocation01Icon} size={13} className="shrink-0 text-primary mt-0.5" />
-                        <span className="truncate">{b.pickup}</span>
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-muted-foreground max-w-[150px]">
-                      <span className="truncate">{b.destination || "—"}</span>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-muted-foreground whitespace-nowrap">
-                      {new Date(b.scheduled_at).toLocaleDateString("en-PH", { dateStyle: "short" })}{" "}
-                      {new Date(b.scheduled_at).toLocaleTimeString("en-PH", { timeStyle: "short" })}
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <AdminStatusBadge status={b.status} />
-                    </td>
-
-                    <td className="py-3.5 px-4 font-mono font-bold text-foreground whitespace-nowrap">
-                      ₱{Number(b.estimated_fare).toLocaleString("en-PH")}
-                    </td>
-
-                    <td className="py-3.5 px-4 text-muted-foreground">
-                      {b.rider ? (
+                      <td className="py-3.5 px-4">
                         <div className="flex flex-col">
-                          <span className="text-foreground font-semibold">{b.rider.name}</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {b.rider.vehicle_model} ({b.rider.plate_number})
-                          </span>
+                          <span className="font-semibold text-foreground">{b.customer_name}</span>
+                          <span className="text-[10px] text-muted-foreground">{b.customer_email}</span>
                         </div>
-                      ) : (
-                        <span className="text-amber-600 dark:text-amber-400 font-medium">Unassigned</span>
-                      )}
-                    </td>
+                      </td>
 
-                    <td className="py-3.5 px-4 text-right">
-                      {(b.status === "pending" || b.status === "assigned") && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-[11px] px-2 font-semibold gap-1 text-primary hover:text-primary"
-                          onClick={() => handleOpenAssignDialog(b)}
-                        >
-                          <HugeiconsIcon icon={UserCheck01Icon} size={12} />
-                          {b.rider ? "Reassign" : "Assign Rider"}
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                      <td className="py-3.5 px-4">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold uppercase text-foreground">
+                          {b.service_type}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-muted-foreground max-w-[150px]">
+                        <div className="flex items-start gap-1">
+                          <HugeiconsIcon icon={PinLocation01Icon} size={13} className="shrink-0 text-primary mt-0.5" />
+                          <span className="truncate">{b.pickup}</span>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-muted-foreground max-w-[150px]">
+                        <span className="truncate">{b.destination || "—"}</span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-muted-foreground whitespace-nowrap">
+                        {new Date(b.scheduled_at).toLocaleDateString("en-PH", { dateStyle: "short", timeZone: "Asia/Manila" })}{" "}
+                        {new Date(b.scheduled_at).toLocaleTimeString("en-PH", { timeStyle: "short", timeZone: "Asia/Manila" })}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <div className="flex flex-col gap-1.5">
+                          <AdminStatusBadge status={b.status} />
+
+                          {/* Cancellation Details */}
+                          {isCancelled && parsed.cancellation && (
+                            <div className="flex flex-col gap-0.5 text-[10px] text-destructive bg-destructive/5 border border-destructive/20 rounded p-1.5 max-w-[190px]">
+                              <span className="font-bold truncate">Reason: {parsed.cancellation.reason}</span>
+                              <span className="text-[9px] text-muted-foreground truncate">
+                                By {parsed.cancellation.cancelledBy} ({parsed.cancellation.cancelledByRole})
+                              </span>
+                              <span className="text-[9px] text-muted-foreground/75">
+                                {new Date(parsed.cancellation.cancelledAt).toLocaleTimeString("en-PH", { timeStyle: "short", timeZone: "Asia/Manila" })}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Emergency / Incident Details */}
+                          {hasEmergency && (
+                            <div className="flex flex-col gap-0.5 text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded p-1.5 max-w-[190px]">
+                              <span className="font-bold flex items-center gap-1">
+                                <HugeiconsIcon icon={Alert01Icon} size={11} className="text-destructive shrink-0" />
+                                <span className="truncate">
+                                  {parsed.emergency?.category || incident?.category || "Emergency Flagged"}
+                                </span>
+                              </span>
+                              <span className="text-[9px] truncate">
+                                {parsed.emergency?.description || incident?.description || "Awaiting dispatch resolution"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-mono font-bold text-foreground whitespace-nowrap">
+                        ₱{Number(b.estimated_fare).toLocaleString("en-PH")}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-muted-foreground">
+                        {b.rider ? (
+                          <div className="flex flex-col">
+                            <span className="text-foreground font-semibold">{b.rider.name}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {b.rider.vehicle_model} ({b.rider.plate_number})
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold text-[11px]">
+                              <HugeiconsIcon icon={Clock01Icon} size={11} />
+                              {b.service_type === "rental" ? "Awaiting Provider" : "Broadcasted (Available)"}
+                            </span>
+                            {b.service_type !== "rental" && b.status === "pending" && (
+                              <span className="text-[10px] text-muted-foreground">
+                                Waiting for rider acceptance
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Incident Investigation Button */}
+                          {(incident || parsed.emergency || isCancelled) && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-[11px] px-2 font-semibold gap-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                              onClick={() => handleCreateOrOpenBookingIncident(b)}
+                              title="Investigate Incident History"
+                            >
+                              <HugeiconsIcon icon={Alert01Icon} size={12} className={hasEmergency ? "text-destructive" : ""} />
+                              <span>Details</span>
+                            </Button>
+                          )}
+
+                          {/* Assign or Reassign */}
+                          {(b.status === "pending" || b.status === "assigned") && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px] px-2 font-semibold gap-1 text-primary hover:text-primary"
+                              onClick={() => handleOpenAssignDialog(b)}
+                            >
+                              <HugeiconsIcon icon={UserCheck01Icon} size={12} />
+                              {b.rider ? "Reassign" : "Assign Rider"}
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -366,6 +558,21 @@ export function AdminBookingsTable({ initialBookings }: AdminBookingsTableProps)
             </div>
           </div>
         </div>
+      )}
+
+      {/* Admin Incident Resolution Modal */}
+      {selectedIncident && (
+        <AdminIncidentResolutionModal
+          incident={selectedIncident}
+          isOpen={isIncidentModalOpen}
+          onClose={() => {
+            setIsIncidentModalOpen(false)
+            setSelectedIncident(null)
+          }}
+          onSuccess={() => {
+            handleRefresh()
+          }}
+        />
       )}
     </>
   )

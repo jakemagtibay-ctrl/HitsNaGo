@@ -11,6 +11,9 @@ import {
   ArrowRight01Icon,
   ArrowLeft01Icon,
   CheckmarkCircle01Icon,
+  Location01Icon,
+  Alert01Icon,
+  Cancel01Icon,
 } from "@hugeicons/core-free-icons"
 import { ServiceAreaNotice } from "@/components/booking/service-area-notice"
 import { BookingStepper, type StepItem } from "@/components/booking/booking-stepper"
@@ -26,6 +29,14 @@ import {
   type ButuanRentalItem,
 } from "@/lib/mock-data/butuan-rental-listings"
 import { ACTIVE_SERVICE_AREA } from "@/lib/config/service-areas"
+import { ButuanCityMap } from "@/components/maps/butuan-city-map"
+import { resolveButuanCoordinates } from "@/lib/maps/geocode"
+import { getRoadRoute, type RouteResult } from "@/lib/maps/routing"
+import { createRentalBooking } from "@/lib/actions/bookings"
+import { checkRentalAvailability, checkAllListingsAvailability } from "@/lib/actions/rentals"
+import type { ModelAvailabilityResult } from "@/types/rental"
+import type { MapMarker } from "@/components/maps/types"
+import { cn } from "@/lib/utils"
 
 const STEPS: StepItem[] = [
   { id: 1, label: "Browse Catalog", sublabel: "Select Equipment/Vehicle" },
@@ -61,9 +72,71 @@ export default function RentalBookingPage() {
   const [customDeliveryAddress, setCustomDeliveryAddress] = React.useState<string>("")
   const [dateError, setDateError] = React.useState<string | null>(null)
 
+  // Real-time Vehicle Unit Availability State
+  const [currentAvailability, setCurrentAvailability] = React.useState<ModelAvailabilityResult | null>(null)
+  const [catalogAvailability, setCatalogAvailability] = React.useState<Record<string, ModelAvailabilityResult>>({})
+  const [isCheckingAvailability, setIsCheckingAvailability] = React.useState<boolean>(false)
+
+  // Fetch real-time availability for selected item
+  React.useEffect(() => {
+    let isCancelled = false
+    queueMicrotask(() => {
+      if (!isCancelled) setIsCheckingAvailability(true)
+    })
+    checkRentalAvailability(selectedItem.id, startDate, endDate)
+      .then((res) => {
+        if (!isCancelled) setCurrentAvailability(res)
+      })
+      .catch((err) => console.warn("Availability check notice:", err))
+      .finally(() => {
+        if (!isCancelled) setIsCheckingAvailability(false)
+      })
+    return () => { isCancelled = true }
+  }, [selectedItem.id, startDate, endDate])
+
+  // Fetch catalog availability for all listings for selected dates
+  React.useEffect(() => {
+    let isCancelled = false
+    checkAllListingsAvailability(startDate, endDate)
+      .then((res) => {
+        if (!isCancelled) setCatalogAvailability(res)
+      })
+      .catch((err) => console.warn("Catalog availability notice:", err))
+    return () => { isCancelled = true }
+  }, [startDate, endDate])
+
   // Confirmation state
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false)
+  const [submitError, setSubmitError] = React.useState<string>("")
   const [confirmedBookingId, setConfirmedBookingId] = React.useState<string>("")
+
+  // Handover Road Route calculation
+  const [handoverRoute, setHandoverRoute] = React.useState<RouteResult | null>(null)
+
+  React.useEffect(() => {
+    let isCancelled = false
+    const itemCoords = resolveButuanCoordinates(selectedItem.pickupAddress)
+    const targetAddress = handoverMethod === "delivery" && customDeliveryAddress.trim()
+      ? customDeliveryAddress
+      : selectedItem.pickupAddress
+
+    const targetCoords = resolveButuanCoordinates(targetAddress)
+
+    if (itemCoords.lat === targetCoords.lat && itemCoords.lng === targetCoords.lng) {
+      Promise.resolve().then(() => {
+        if (!isCancelled) setHandoverRoute(null)
+      })
+      return () => { isCancelled = true }
+    }
+
+    getRoadRoute(itemCoords, targetCoords)
+      .then((res) => {
+        if (!isCancelled) setHandoverRoute(res)
+      })
+      .catch((err) => console.error("Rental routing error:", err))
+
+    return () => { isCancelled = true }
+  }, [selectedItem, handoverMethod, customDeliveryAddress])
 
   // Filter listings
   const filteredListings = React.useMemo(() => {
@@ -79,6 +152,22 @@ export default function RentalBookingPage() {
       return matchesSearch && matchesCategory && matchesPrice
     })
   }, [searchQuery, selectedCategory, maxPrice])
+
+  const catalogMarkers: MapMarker[] = React.useMemo(() => {
+    return filteredListings.map((item) => {
+      const coords = resolveButuanCoordinates(item.pickupAddress)
+      return {
+        id: item.id,
+        title: item.title,
+        description: `₱${item.pricePerDay.toLocaleString()}/day • ${item.provider.businessName} (${item.pickupAddress})`,
+        address: item.pickupAddress,
+        lat: coords.lat,
+        lng: coords.lng,
+        category: "listing" as const,
+        badgeText: "Rental Service",
+      }
+    })
+  }, [filteredListings])
 
   // Estimate calculation
   const estimate = React.useMemo(() => {
@@ -103,25 +192,58 @@ export default function RentalBookingPage() {
       setDateError("Return date cannot be earlier than start date.")
       return
     }
+    if (currentAvailability && !currentAvailability.isAvailable) {
+      setDateError(currentAvailability.message)
+      return
+    }
     setDateError(null)
     setCurrentStep(3)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  const handleConfirmRental = () => {
+  const handleConfirmRental = async () => {
     setIsSubmitting(true)
-    setTimeout(() => {
-      const generatedId = `HNG-${Math.floor(100000 + Math.random() * 900000)}`
-      setConfirmedBookingId(generatedId)
-      setIsSubmitting(false)
+    setSubmitError("")
+
+    try {
+      const { booking, error } = await createRentalBooking({
+        listingId: selectedItem.id,
+        itemTitle: selectedItem.title,
+        category: selectedItem.category,
+        pickupLocation: selectedItem.pickupAddress || "Butuan City",
+        handoverLocation: handoverMethod === "delivery" && customDeliveryAddress.trim()
+          ? customDeliveryAddress
+          : (selectedItem.pickupAddress || "Butuan City"),
+        startDate,
+        endDate,
+        rentalDays: estimate.durationDays,
+        pricePerDay: selectedItem.pricePerDay,
+        securityDeposit: selectedItem.securityDeposit,
+        estimatedTotal: estimate.estimatedTotal,
+      })
+
+      if (error || !booking) {
+        setSubmitError(error ?? "Unable to complete rental request.")
+        // Concurrency-safe refresh: Availability changed
+        checkRentalAvailability(selectedItem.id, startDate, endDate).then(setCurrentAvailability)
+        return
+      }
+
+      setConfirmedBookingId(booking.reference)
       setCurrentStep(4)
       window.scrollTo({ top: 0, behavior: "smooth" })
-    }, 800)
+    } catch (err) {
+      setSubmitError("Network error. Please try again.")
+      console.error(err)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleReset = () => {
     setCurrentStep(1)
     setConfirmedBookingId("")
+    setSubmitError("")
   }
 
   // Confirmation view
@@ -240,6 +362,28 @@ export default function RentalBookingPage() {
                 </CardContent>
               </Card>
 
+              {/* Butuan City Rental Fleet Map */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <HugeiconsIcon icon={Location01Icon} size={14} className="text-primary" />
+                    Butuan City Fleet & Equipment Hub Locations
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Click any marker to locate rental vehicles and equipment hubs
+                  </span>
+                </div>
+                <ButuanCityMap
+                  title="Rental Services & Fleet Hubs"
+                  description="Butuan City, Agusan del Norte • Verified equipment and vehicle pickup locations"
+                  height="340px"
+                  markers={catalogMarkers}
+                  showLandmarks={true}
+                  showControls={true}
+                  roleContext="customer"
+                />
+              </div>
+
               {/* Listings Grid */}
               {filteredListings.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-border p-8 text-center flex flex-col items-center gap-3">
@@ -331,6 +475,42 @@ export default function RentalBookingPage() {
                               </span>
                             ))}
                           </div>
+
+                          {/* Real-time Fleet Unit Availability Badge */}
+                          {(() => {
+                            const itemAvail = catalogAvailability[item.id]
+                            if (!itemAvail) return null
+
+                            if (itemAvail.isAvailable) {
+                              return (
+                                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg">
+                                  <HugeiconsIcon icon={CheckmarkCircle01Icon} size={13} className="shrink-0" />
+                                  <span>{itemAvail.availableUnits} of {itemAvail.totalUnits} Units Available</span>
+                                </div>
+                              )
+                            }
+                            if (itemAvail.status === "all_maintenance") {
+                              return (
+                                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-1 rounded-lg">
+                                  <HugeiconsIcon icon={Alert01Icon} size={13} className="shrink-0" />
+                                  <span>Under Maintenance</span>
+                                </div>
+                              )
+                            }
+                            if (itemAvail.status === "all_booked") {
+                              return (
+                                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-destructive bg-destructive/10 px-2 py-1 rounded-lg">
+                                  <HugeiconsIcon icon={Cancel01Icon} size={13} className="shrink-0" />
+                                  <span>Fully Booked for Selected Dates</span>
+                                </div>
+                              )
+                            }
+                            return (
+                              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-1 rounded-lg">
+                                <span>Unavailable</span>
+                              </div>
+                            )
+                          })()}
 
                           {/* Provider & Action */}
                           <div className="flex items-center justify-between gap-3 pt-3 border-t border-border mt-1">
@@ -464,6 +644,58 @@ export default function RentalBookingPage() {
                   <p className="text-xs text-destructive font-medium">{dateError}</p>
                 )}
 
+                {/* Real-time Fleet Unit Availability Card */}
+                {currentAvailability && (
+                  <div
+                    className={cn(
+                      "p-4 rounded-xl border flex flex-col gap-2 transition-all",
+                      currentAvailability.isAvailable
+                        ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-800 dark:text-emerald-300"
+                        : "border-destructive/30 bg-destructive/5 text-destructive"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {currentAvailability.isAvailable ? (
+                          <HugeiconsIcon icon={CheckmarkCircle01Icon} size={18} className="text-emerald-600 shrink-0" />
+                        ) : (
+                          <HugeiconsIcon icon={Cancel01Icon} size={18} className="text-destructive shrink-0" />
+                        )}
+                        <span className="font-bold text-xs sm:text-sm">
+                          {currentAvailability.isAvailable ? "Eligible Vehicle Unit Available" : "Vehicle Model Unavailable"}
+                        </span>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] font-mono uppercase font-bold",
+                          currentAvailability.isAvailable
+                            ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/10"
+                            : "border-destructive/30 text-destructive bg-destructive/10"
+                        )}
+                      >
+                        {currentAvailability.availableUnits} of {currentAvailability.totalUnits} Units Free
+                      </Badge>
+                    </div>
+
+                    <p className="text-xs leading-relaxed font-medium">
+                      {isCheckingAvailability ? "Checking fleet availability for selected dates..." : currentAvailability.message}
+                    </p>
+
+                    {currentAvailability.isAvailable && currentAvailability.bookedUnits > 0 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        Note: {currentAvailability.bookedUnits} unit(s) of this model are reserved on adjacent dates. Your reservation will secure 1 of the {currentAvailability.availableUnits} remaining free units.
+                      </span>
+                    )}
+
+                    {!currentAvailability.isAvailable && (
+                      <p className="text-[11px] font-medium text-destructive/90">
+                        Please adjust your rental dates or return to Step 1 to select another vehicle model.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Handover Method Selector */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-semibold text-foreground">
@@ -521,18 +753,39 @@ export default function RentalBookingPage() {
 
                 {/* Custom Delivery Address Input if Delivery selected */}
                 {handoverMethod === "delivery" && (
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="rent-delivery-addr" className="text-xs font-semibold text-foreground">
-                      Delivery Address in Butuan City
-                    </label>
-                    <input
-                      id="rent-delivery-addr"
-                      type="text"
-                      value={customDeliveryAddress}
-                      onChange={(e) => setCustomDeliveryAddress(e.target.value)}
-                      placeholder="e.g. Hotel Obrero, Montilla Blvd, Butuan City..."
-                      className="h-11 w-full rounded-xl border border-border bg-background px-3 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="rent-delivery-addr" className="text-xs font-semibold text-foreground">
+                        Delivery Address in Butuan City
+                      </label>
+                      <input
+                        id="rent-delivery-addr"
+                        type="text"
+                        value={customDeliveryAddress}
+                        onChange={(e) => setCustomDeliveryAddress(e.target.value)}
+                        placeholder="e.g. Hotel Obrero, Montilla Blvd, Butuan City..."
+                        className="h-11 w-full rounded-xl border border-border bg-background px-3 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+
+                    {handoverRoute && (
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border/80 text-xs">
+                        <div className="flex items-center gap-2">
+                          <HugeiconsIcon icon={Location01Icon} size={15} className="text-primary shrink-0" />
+                          <div>
+                            <span className="font-semibold text-foreground block">
+                              Road Distance from Provider: {handoverRoute.distanceKm} km
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              Estimated handover transit: ~{handoverRoute.durationMin} mins from {selectedItem.pickupAddress}
+                            </span>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] font-mono">
+                          {handoverRoute.isFallback ? "Grid Estimate" : "OSRM Routing"}
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -541,6 +794,7 @@ export default function RentalBookingPage() {
                   <Button
                     type="button"
                     onClick={handleNextFromStep2}
+                    disabled={Boolean(currentAvailability && !currentAvailability.isAvailable)}
                     className="w-full sm:w-auto font-semibold shadow-xs gap-2"
                   >
                     <span>Review Rental Order</span>
@@ -627,6 +881,30 @@ export default function RentalBookingPage() {
                   totalAmount={estimate.estimatedTotal}
                   totalLabel="Estimated Total (Rent + Deposit)"
                 />
+
+                {/* Confirmed Fleet Allocation Notice */}
+                {currentAvailability && currentAvailability.isAvailable && (
+                  <div className="flex items-center justify-between p-3.5 rounded-xl border border-primary/20 bg-primary/5 text-xs text-foreground">
+                    <div className="flex items-center gap-2">
+                      <HugeiconsIcon icon={CheckmarkCircle01Icon} size={16} className="text-primary shrink-0" />
+                      <div>
+                        <span className="font-bold block">Vehicle Unit Allocation Verified</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {currentAvailability.availableUnits} of {currentAvailability.totalUnits} physical units free for your reservation window.
+                        </span>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="border-primary/30 text-primary bg-primary/10 text-[10px] uppercase font-bold">
+                      Secured on Submit
+                    </Badge>
+                  </div>
+                )}
+
+                {submitError && (
+                  <p className="text-xs text-destructive rounded-xl border border-destructive/30 bg-destructive/10 p-3">
+                    {submitError}
+                  </p>
+                )}
 
                 {/* Actions */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">

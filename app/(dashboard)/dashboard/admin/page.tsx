@@ -21,6 +21,8 @@ import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { Card } from "@/components/ui/card"
 import { buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { getAllBookings } from "@/lib/actions/bookings"
+import { AdminOperationsCenter } from "@/components/admin/admin-operations-center"
 import { cn } from "@/lib/utils"
 import type { Metadata } from "next"
 
@@ -36,7 +38,10 @@ export default async function AdminDashboardOverviewPage() {
   const displayName =
     clerkUser?.fullName || clerkUser?.firstName || "System Administrator"
 
-  const metrics = await getAdminDashboardStats()
+  const [metrics, allBookings] = await Promise.all([
+    getAdminDashboardStats(),
+    getAllBookings(),
+  ])
 
   return (
     <div className="flex flex-col gap-8 pb-16">
@@ -108,6 +113,10 @@ export default async function AdminDashboardOverviewPage() {
           className="sm:col-span-2 lg:col-span-2"
         />
       </div>
+
+      {/* Butuan City Live Operations & Dispatch Center */}
+      <AdminOperationsCenter initialBookings={allBookings} />
+
 
       {/* Recent Bookings List (Latest 5) */}
       <div className="flex flex-col gap-4">
@@ -207,6 +216,7 @@ export default async function AdminDashboardOverviewPage() {
                           day: "numeric",
                           hour: "2-digit",
                           minute: "2-digit",
+                          timeZone: "Asia/Manila",
                         })}
                       </td>
                     </tr>

@@ -33,6 +33,7 @@ export function BookingCard({ booking, href, className }: BookingCardProps) {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "Asia/Manila",
   })
 
   // Format currency

@@ -317,7 +317,11 @@ export function getButuanLocationById(id: string): LocationAddress | undefined {
 /**
  * Helper to build a LocationAddress object from custom user text inside Butuan City
  */
-export function createCustomButuanLocation(customAddress: string, landmark?: string): LocationAddress {
+export function createCustomButuanLocation(
+  customAddress: string,
+  landmark?: string,
+  coordinates?: { lat: number; lng: number }
+): LocationAddress {
   return {
     title: customAddress.split(",")[0].trim() || "Butuan City Location",
     address: `${customAddress.trim()}, Butuan City, Agusan del Norte`,
@@ -325,7 +329,7 @@ export function createCustomButuanLocation(customAddress: string, landmark?: str
     city: "Butuan City",
     province: "Agusan del Norte",
     postalCode: "8600",
-    coordinates: {
+    coordinates: coordinates || {
       lat: 8.9475,
       lng: 125.5406,
     },

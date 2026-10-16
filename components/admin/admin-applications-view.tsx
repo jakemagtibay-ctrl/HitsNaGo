@@ -140,7 +140,7 @@ export function AdminApplicationsView({ initialApplications }: AdminApplications
                       <span className="capitalize">{app.type} Application</span>
                     </Badge>
                     <span className="text-[11px] text-muted-foreground">
-                      {new Date(app.created_at).toLocaleDateString("en-PH", { dateStyle: "short" })}
+                      {new Date(app.created_at).toLocaleDateString("en-PH", { dateStyle: "short", timeZone: "Asia/Manila" })}
                     </span>
                   </div>
 

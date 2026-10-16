@@ -170,6 +170,7 @@ export default function AdminDisputesPage() {
                     {new Date(disp.submittedDate).toLocaleDateString("en-PH", {
                       month: "short",
                       day: "numeric",
+                      timeZone: "Asia/Manila",
                     })}
                   </span>
                 </div>

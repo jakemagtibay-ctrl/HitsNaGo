@@ -75,6 +75,8 @@ function generateReference(): string {
 
 // ─── Customer Actions ─────────────────────────────────────────────────────────
 
+import { serializeBookingGeo } from "@/lib/maps/geocode"
+
 export interface CreateRideBookingInput {
   pickup: string
   destination: string
@@ -84,6 +86,10 @@ export interface CreateRideBookingInput {
   estimatedFare: number
   vehicleCategory: string
   notes?: string
+  pickupCoords?: { lat: number; lng: number }
+  destinationCoords?: { lat: number; lng: number }
+  distanceKm?: number
+  durationMin?: number
 }
 
 export async function createRideBooking(
@@ -102,6 +108,13 @@ export async function createRideBooking(
       "Customer"
     const customerEmail = user.emailAddresses[0]?.emailAddress || ""
 
+    const serializedNotes = serializeBookingGeo(input.notes, {
+      pickupCoords: input.pickupCoords,
+      destinationCoords: input.destinationCoords,
+      distanceKm: input.distanceKm,
+      durationMin: input.durationMin,
+    })
+
     const { data, error } = await db
       .from("bookings")
       .insert({
@@ -117,7 +130,7 @@ export async function createRideBooking(
         passengers: input.passengers,
         payment_mode: input.paymentMode,
         estimated_fare: input.estimatedFare,
-        notes: input.notes || null,
+        notes: serializedNotes,
         status: "pending",
         rider_id: null,
       })
@@ -131,11 +144,239 @@ export async function createRideBooking(
 
     revalidatePath("/dashboard/customer/bookings")
     revalidatePath("/dashboard/admin/bookings")
+    revalidatePath("/dashboard/rider")
 
     return { booking: data as Booking, error: null }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to create booking."
     console.error("[createRideBooking] Exception:", err)
+    return { booking: null, error: message }
+  }
+}
+
+export interface CreateDeliveryBookingInput {
+  pickup: string
+  destination: string
+  scheduledAt: string
+  packageType: string
+  sizeTier: string
+  senderName: string
+  senderPhone: string
+  recipientName: string
+  recipientPhone: string
+  packageDescription: string
+  isFragile?: boolean
+  estimatedFare: number
+  notes?: string
+  pickupCoords?: { lat: number; lng: number }
+  destinationCoords?: { lat: number; lng: number }
+  distanceKm?: number
+  durationMin?: number
+}
+
+export async function createDeliveryBooking(
+  input: CreateDeliveryBookingInput
+): Promise<{ booking: Booking | null; error: string | null }> {
+  try {
+    const user = await currentUser()
+    if (!user) return { booking: null, error: "Not authenticated." }
+
+    const db = createServiceClient()
+
+    const customerName =
+      user.fullName ||
+      user.firstName ||
+      user.emailAddresses[0]?.emailAddress.split("@")[0] ||
+      "Customer"
+    const customerEmail = user.emailAddresses[0]?.emailAddress || ""
+
+    const deliveryNotes = [
+      `Sender: ${input.senderName} (${input.senderPhone})`,
+      `Recipient: ${input.recipientName} (${input.recipientPhone})`,
+      `Item: ${input.packageDescription} [Type: ${input.packageType}, Tier: ${input.sizeTier}${input.isFragile ? ", FRAGILE" : ""}]`,
+      input.notes ? `Instructions: ${input.notes}` : "",
+    ]
+      .filter(Boolean)
+      .join(" • ")
+
+    const serializedNotes = serializeBookingGeo(deliveryNotes, {
+      pickupCoords: input.pickupCoords,
+      destinationCoords: input.destinationCoords,
+      distanceKm: input.distanceKm,
+      durationMin: input.durationMin,
+    })
+
+    const { data, error } = await db
+      .from("bookings")
+      .insert({
+        reference: generateReference(),
+        customer_id: user.id,
+        customer_name: customerName,
+        customer_email: customerEmail,
+        service_type: "delivery",
+        vehicle_category: "motorcycle",
+        pickup: input.pickup,
+        destination: input.destination,
+        scheduled_at: input.scheduledAt,
+        passengers: 0,
+        payment_mode: "cash",
+        estimated_fare: input.estimatedFare,
+        notes: serializedNotes,
+        status: "pending",
+        rider_id: null,
+      })
+      .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .single()
+
+    if (error) {
+      console.error("[createDeliveryBooking]", error)
+      return { booking: null, error: error.message }
+    }
+
+    revalidatePath("/dashboard/customer/bookings")
+    revalidatePath("/dashboard/admin/bookings")
+    revalidatePath("/dashboard/rider")
+
+    return { booking: data as Booking, error: null }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to create delivery booking."
+    console.error("[createDeliveryBooking] Exception:", err)
+    return { booking: null, error: message }
+  }
+}
+
+export interface CreateRentalBookingInput {
+  listingId?: string
+  itemTitle: string
+  category: string
+  pickupLocation: string
+  handoverLocation: string
+  startDate: string
+  endDate: string
+  rentalDays: number
+  pricePerDay: number
+  securityDeposit: number
+  estimatedTotal: number
+  notes?: string
+}
+
+export async function createRentalBooking(
+  input: CreateRentalBookingInput
+): Promise<{ booking: Booking | null; error: string | null }> {
+  try {
+    const user = await currentUser()
+    if (!user) return { booking: null, error: "Not authenticated." }
+
+    const db = createServiceClient()
+
+    const customerName =
+      user.fullName ||
+      user.firstName ||
+      user.emailAddresses[0]?.emailAddress.split("@")[0] ||
+      "Customer"
+    const customerEmail = user.emailAddresses[0]?.emailAddress || ""
+
+    // Validate dates
+    const start = new Date(input.startDate)
+    const end = new Date(input.endDate)
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+      return { booking: null, error: "Invalid rental duration dates." }
+    }
+
+    // Resolve listingId
+    let listingId = input.listingId
+    if (!listingId) {
+      const { MOCK_BUTUAN_RENTAL_LISTINGS } = await import("@/lib/mock-data/butuan-rental-listings")
+      const matched = MOCK_BUTUAN_RENTAL_LISTINGS.find((l) => l.title === input.itemTitle)
+      listingId = matched ? matched.id : "rent_btn_01"
+    }
+
+    // Concurrency-safe atomic unit allocation check
+    const { allocateUnitForBooking } = await import("@/lib/actions/rentals")
+    const allocation = await allocateUnitForBooking(
+      listingId,
+      input.startDate,
+      input.endDate
+    )
+
+    if (!allocation.success || !allocation.unit) {
+      return {
+        booking: null,
+        error: allocation.error || "Selected vehicle model is fully reserved for the requested dates.",
+      }
+    }
+
+    const assignedUnit = allocation.unit
+
+    const rentalNotes = [
+      `Rental Item: ${input.itemTitle}`,
+      `Assigned Unit: ${assignedUnit.unitIdentifier}`,
+      `Period: ${input.startDate} to ${input.endDate} (${input.rentalDays} days)`,
+      `Rate: ₱${input.pricePerDay}/day`,
+      `Deposit: ₱${input.securityDeposit}`,
+      `Handover Location: ${input.handoverLocation}`,
+      input.notes ? `Customer Notes: ${input.notes}` : "",
+    ]
+      .filter(Boolean)
+      .join(" • ")
+
+    const insertPayload: Record<string, unknown> = {
+      reference: generateReference(),
+      customer_id: user.id,
+      customer_name: customerName,
+      customer_email: customerEmail,
+      service_type: "rental",
+      vehicle_category: input.category,
+      pickup: input.pickupLocation,
+      destination: input.handoverLocation,
+      scheduled_at: start.toISOString(),
+      passengers: 1,
+      payment_mode: "cash",
+      estimated_fare: input.estimatedTotal,
+      notes: rentalNotes,
+      status: "pending",
+      rider_id: null,
+      unit_id: assignedUnit.id,
+      listing_id: listingId,
+      rental_start_date: start.toISOString(),
+      rental_end_date: end.toISOString(),
+    }
+
+    let { data, error } = await db
+      .from("bookings")
+      .insert(insertPayload)
+      .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .single()
+
+    if (error && (error.message?.includes("column") || error.code === "PGRST204")) {
+      delete insertPayload.unit_id
+      delete insertPayload.listing_id
+      delete insertPayload.rental_start_date
+      delete insertPayload.rental_end_date
+
+      const retryRes = await db
+        .from("bookings")
+        .insert(insertPayload)
+        .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+        .single()
+
+      data = retryRes.data
+      error = retryRes.error
+    }
+
+    if (error) {
+      console.error("[createRentalBooking]", error)
+      return { booking: null, error: error.message }
+    }
+
+    revalidatePath("/dashboard/customer/bookings")
+    revalidatePath("/dashboard/provider")
+    revalidatePath("/dashboard/admin/bookings")
+
+    return { booking: data as Booking, error: null }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to create rental reservation."
+    console.error("[createRentalBooking] Exception:", err)
     return { booking: null, error: message }
   }
 }
@@ -342,6 +583,189 @@ export async function getRiderBookings(): Promise<Booking[]> {
   }
 }
 
+export async function getAvailableBookingsForRider(): Promise<{
+  bookings: Booking[]
+  riderActiveTrip: Booking | null
+  error: string | null
+}> {
+  try {
+    const rider = await getRiderRecord()
+    if (!rider) {
+      return { bookings: [], riderActiveTrip: null, error: "Only verified and active riders can view available requests." }
+    }
+
+    const db = createServiceClient()
+
+    // 1. Check if rider currently has an active trip in progress
+    const { data: activeTrips } = await db
+      .from("bookings")
+      .select("*")
+      .eq("rider_id", rider.id)
+      .eq("status", "in_progress")
+      .maybeSingle()
+
+    const riderActiveTrip = (activeTrips as Booking) || null
+
+    // 2. Fetch unclaimed pending bookings for on-demand services (rides & deliveries)
+    const { data, error } = await db
+      .from("bookings")
+      .select("*")
+      .eq("status", "pending")
+      .is("rider_id", null)
+      .in("service_type", ["ride", "delivery"])
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("[getAvailableBookingsForRider] Query error:", error)
+      return { bookings: [], riderActiveTrip, error: error.message }
+    }
+
+    // 3. Privacy protection: Mask customer personal contact info until accepted
+    const sanitizedBookings: Booking[] = (data || []).map((b) => {
+      const nameParts = b.customer_name ? b.customer_name.trim().split(" ") : ["Customer"]
+      const maskedName =
+        nameParts.length > 1
+          ? `${nameParts[0]} ${nameParts[nameParts.length - 1].charAt(0)}.`
+          : nameParts[0]
+
+      return {
+        ...b,
+        customer_name: maskedName,
+        customer_email: "", // Never expose email to unassigned riders
+      }
+    })
+
+    return { bookings: sanitizedBookings, riderActiveTrip, error: null }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to load available bookings."
+    console.error("[getAvailableBookingsForRider] Exception:", err)
+    return { bookings: [], riderActiveTrip: null, error: message }
+  }
+}
+
+export async function acceptBookingByRider(
+  bookingId: string
+): Promise<{ success: boolean; booking: Booking | null; error: string | null }> {
+  try {
+    const user = await currentUser()
+    if (!user) {
+      return { success: false, booking: null, error: "Not authenticated." }
+    }
+
+    const rider = await getRiderRecord()
+    if (!rider) {
+      return { success: false, booking: null, error: "Only verified and active riders can accept bookings." }
+    }
+
+    const db = createServiceClient()
+
+    // 1. Check if rider is already occupied with an in_progress booking
+    const { data: activeTrips } = await db
+      .from("bookings")
+      .select("id, reference")
+      .eq("rider_id", rider.id)
+      .eq("status", "in_progress")
+
+    if (activeTrips && activeTrips.length > 0) {
+      return {
+        success: false,
+        booking: null,
+        error: "You cannot accept another booking while you have a trip or delivery in progress.",
+      }
+    }
+
+    // 2. Race-Safe Atomic Acceptance via Supabase RPC function
+    let rpcSuccess = false
+    try {
+      const { data: rpcResult, error: rpcError } = await db.rpc("accept_booking_as_rider", {
+        p_booking_id: bookingId,
+        p_rider_id: rider.id,
+      })
+
+      if (!rpcError && rpcResult) {
+        if (!rpcResult.success) {
+          return {
+            success: false,
+            booking: null,
+            error: rpcResult.message || "Failed to accept booking.",
+          }
+        }
+        rpcSuccess = true
+      }
+    } catch {
+      rpcSuccess = false
+    }
+
+    // 3. Dual-Resilience Direct Atomic Conditional Fallback
+    // If RPC is pending database migration, run atomic single-winner UPDATE
+    if (!rpcSuccess) {
+      const { data: updated, error: updateError } = await db
+        .from("bookings")
+        .update({
+          rider_id: rider.id,
+          status: "accepted",
+        })
+        .eq("id", bookingId)
+        .is("rider_id", null)
+        .eq("status", "pending")
+        .in("service_type", ["ride", "delivery"])
+        .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+        .maybeSingle()
+
+      if (updateError) {
+        console.error("[acceptBookingByRider] Fallback update error:", updateError)
+        return { success: false, booking: null, error: updateError.message }
+      }
+
+      if (!updated) {
+        // Condition matched 0 rows -> another rider accepted first or customer cancelled
+        const { data: current } = await db
+          .from("bookings")
+          .select("status, rider_id")
+          .eq("id", bookingId)
+          .maybeSingle()
+
+        if (current?.status === "cancelled") {
+          return { success: false, booking: null, error: "This booking was cancelled by the customer." }
+        }
+
+        return {
+          success: false,
+          booking: null,
+          error: "Another rider accepted this request first. It is no longer available.",
+        }
+      }
+
+      console.log(`[Automatic Distribution] Booking ${updated.reference} atomically accepted by rider ${rider.name} (${rider.id}).`)
+
+      revalidatePath("/dashboard/rider")
+      revalidatePath("/dashboard/customer/bookings")
+      revalidatePath("/dashboard/admin/bookings")
+
+      return { success: true, booking: updated as Booking, error: null }
+    }
+
+    // Fully retrieve populated booking if RPC succeeded
+    const { data: populatedBooking } = await db
+      .from("bookings")
+      .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .eq("id", bookingId)
+      .single()
+
+    console.log(`[Automatic Distribution] Booking ${populatedBooking?.reference || bookingId} accepted by rider ${rider.name}.`)
+
+    revalidatePath("/dashboard/rider")
+    revalidatePath("/dashboard/customer/bookings")
+    revalidatePath("/dashboard/admin/bookings")
+
+    return { success: true, booking: populatedBooking as Booking, error: null }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to accept booking."
+    console.error("[acceptBookingByRider] Exception:", err)
+    return { success: false, booking: null, error: message }
+  }
+}
+
 export async function updateBookingStatus(
   bookingId: string,
   newStatus: BookingStatus
@@ -415,6 +839,30 @@ export async function getProviderRecord(): Promise<Provider | null> {
   } catch (err) {
     console.error("[getProviderRecord] Exception:", err)
     return null
+  }
+}
+
+export async function getProviderRentalBookings(): Promise<Booking[]> {
+  try {
+    const user = await currentUser()
+    if (!user) return []
+
+    const db = createServiceClient()
+    const { data, error } = await db
+      .from("bookings")
+      .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .eq("service_type", "rental")
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("[getProviderRentalBookings]", error)
+      return []
+    }
+
+    return (data as Booking[]) || []
+  } catch (err) {
+    console.error("[getProviderRentalBookings] Exception:", err)
+    return []
   }
 }
 

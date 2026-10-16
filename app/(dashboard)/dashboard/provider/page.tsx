@@ -1,7 +1,8 @@
 import * as React from "react"
 import { currentUser } from "@clerk/nextjs/server"
 import { requireRole } from "@/lib/auth/roles"
-import { getProviderRecord } from "@/lib/actions/bookings"
+import { getProviderRecord, getProviderRentalBookings } from "@/lib/actions/bookings"
+import { getProviderInventory } from "@/lib/actions/rentals"
 import { ProviderPortalView } from "@/components/provider/provider-portal-view"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Key01Icon } from "@hugeicons/core-free-icons"
@@ -16,6 +17,10 @@ export default async function ProviderDashboardPage() {
   await requireRole("provider")
   const clerkUser = await currentUser()
   const provider = await getProviderRecord()
+  const [bookings, inventory] = await Promise.all([
+    getProviderRentalBookings(),
+    getProviderInventory(),
+  ])
 
   if (!provider) {
     return (
@@ -43,7 +48,11 @@ export default async function ProviderDashboardPage() {
         </p>
       </div>
 
-      <ProviderPortalView provider={provider} />
+      <ProviderPortalView
+        provider={provider}
+        initialBookings={bookings}
+        initialInventory={inventory}
+      />
     </div>
   )
 }

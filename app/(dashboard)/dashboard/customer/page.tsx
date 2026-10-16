@@ -20,6 +20,8 @@ import { QuickAction } from "@/components/dashboard/quick-action"
 import { BookingStatusBadge } from "@/components/dashboard/status-badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { buttonVariants } from "@/components/ui/button"
+import { ButuanCityMap } from "@/components/maps/butuan-city-map"
+import { convertBookingToMapMarkers } from "@/lib/maps/geocode"
 import { cn } from "@/lib/utils"
 import type { Metadata } from "next"
 
@@ -182,6 +184,25 @@ export default async function CustomerDashboardPage() {
             badgeText="Same-day"
           />
         </div>
+      </div>
+
+      {/* Butuan City Interactive Area Map */}
+      <div className="flex flex-col gap-3">
+        <SectionHeader
+          title="Butuan City Coverage & Destinations"
+          description="Explore verified landmarks, airport pickup zones, and your recent service routes"
+          action={{ label: "Book a Ride", href: "/dashboard/customer/book/ride" }}
+        />
+        <ButuanCityMap
+          title="Butuan City Service Area Map"
+          description="Click any landmark or tap 'My Location' to inspect your surroundings in Butuan City"
+          height="420px"
+          markers={bookings.flatMap(convertBookingToMapMarkers)}
+          showLandmarks={true}
+          showControls={true}
+          enableLocationSelect={true}
+          roleContext="customer"
+        />
       </div>
 
       {/* Recent bookings */}

@@ -25,10 +25,49 @@ export interface RentalListing {
   updatedAt: string
 }
 
+export type UnitStatus = "available" | "maintenance" | "unavailable"
+
+export interface RentalUnit {
+  id: string
+  listingId: string
+  providerId: string
+  unitIdentifier: string
+  status: UnitStatus
+  maintenanceStart?: string | null
+  maintenanceEnd?: string | null
+  maintenanceReason?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type AvailabilityStatus =
+  | "available"
+  | "all_booked"
+  | "all_maintenance"
+  | "all_unavailable"
+  | "unavailable_mixed"
+  | "mixed_available"
+  | "mixed_unavailable"
+
+export interface ModelAvailabilityResult {
+  listingId: string
+  modelName: string
+  totalUnits: number
+  availableUnits: number
+  bookedUnits: number
+  maintenanceUnits: number
+  unavailableUnits: number
+  status: AvailabilityStatus
+  isAvailable: boolean
+  message: string
+}
+
 export interface RentalBooking extends BaseBooking {
   serviceType: "rental"
   listingId: string
   providerId: string
+  unitId?: string | null
+  unitIdentifier?: string | null
   listing?: RentalListing
   startDate: string
   endDate: string

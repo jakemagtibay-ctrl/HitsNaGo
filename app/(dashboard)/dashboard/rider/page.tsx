@@ -2,11 +2,13 @@ import * as React from "react"
 import Link from "next/link"
 import { currentUser } from "@clerk/nextjs/server"
 import { requireRole } from "@/lib/auth/roles"
-import { getRiderRecord, getRiderBookings } from "@/lib/actions/bookings"
+import { getRiderRecord, getRiderBookings, getAvailableBookingsForRider } from "@/lib/actions/bookings"
 import { RiderBookingsView } from "@/components/rider/rider-bookings-view"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Motorbike01Icon, Calendar01Icon, StarIcon } from "@hugeicons/core-free-icons"
 import { buttonVariants } from "@/components/ui/button"
+import { ButuanCityMap } from "@/components/maps/butuan-city-map"
+import { convertBookingToMapMarkers } from "@/lib/maps/geocode"
 import { cn } from "@/lib/utils"
 import type { Metadata } from "next"
 
@@ -35,7 +37,24 @@ export default async function RiderDashboardPage() {
     )
   }
 
-  const bookings = await getRiderBookings()
+  const [bookings, availableResult] = await Promise.all([
+    getRiderBookings(),
+    getAvailableBookingsForRider(),
+  ])
+  const availableBookings = availableResult.bookings || []
+
+  // Combine markers for assigned and available requests
+  const assignedMarkers = bookings.flatMap(convertBookingToMapMarkers)
+  const availableMarkers = availableBookings.flatMap((b) =>
+    convertBookingToMapMarkers(b).map((m) => ({
+      ...m,
+      id: `avail-${m.id}`,
+      title: `[Available Request] ${m.title}`,
+      category: "pickup" as const,
+      badgeText: "Broadcasted Request",
+    }))
+  )
+  const allMarkers = [...assignedMarkers, ...availableMarkers]
 
   return (
     <div className="flex flex-col gap-6 pb-16">
@@ -66,10 +85,37 @@ export default async function RiderDashboardPage() {
         </div>
       </div>
 
+      {/* City Dispatch & Route Map */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-0.5">
+            <h2 className="font-heading text-base font-bold text-foreground">
+              Butuan City Dispatch & Area Map
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {allMarkers.length > 0
+                ? `Displaying ${bookings.length} assigned trip(s) and ${availableBookings.length} broadcasted request(s) waiting for acceptance in Butuan City.`
+                : `No active dispatches. Explore Butuan City landmarks, commercial centers, and transit terminals below.`}
+            </p>
+          </div>
+        </div>
+
+        <ButuanCityMap
+          title="Rider Coverage & City Route Map"
+          description="Butuan City, Agusan del Norte • Real-time dispatch points & transit landmarks"
+          height="420px"
+          markers={allMarkers}
+          showLandmarks={true}
+          showControls={true}
+          roleContext="rider"
+        />
+      </div>
+
       {/* Bookings View */}
       <RiderBookingsView
         rider={rider}
         initialBookings={bookings}
+        initialAvailable={availableBookings}
         viewMode="active"
       />
     </div>
