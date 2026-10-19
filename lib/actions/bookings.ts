@@ -1,6 +1,11 @@
 "use server"
 
-import { createServiceClient } from "@/lib/supabase"
+import {
+  createServiceClient,
+  formatSupabaseError,
+  isSupabaseConfigured,
+  type FormattedSupabaseError,
+} from "@/lib/supabase"
 import { currentUser } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 
@@ -134,7 +139,7 @@ export async function createRideBooking(
         status: "pending",
         rider_id: null,
       })
-      .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
       .single()
 
     if (error) {
@@ -225,7 +230,7 @@ export async function createDeliveryBooking(
         status: "pending",
         rider_id: null,
       })
-      .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
       .single()
 
     if (error) {
@@ -345,7 +350,7 @@ export async function createRentalBooking(
     let { data, error } = await db
       .from("bookings")
       .insert(insertPayload)
-      .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
       .single()
 
     if (error && (error.message?.includes("column") || error.code === "PGRST204")) {
@@ -357,7 +362,7 @@ export async function createRentalBooking(
       const retryRes = await db
         .from("bookings")
         .insert(insertPayload)
-        .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+        .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
         .single()
 
       data = retryRes.data
@@ -389,7 +394,7 @@ export async function getCustomerBookings(): Promise<Booking[]> {
     const db = createServiceClient()
     const { data, error } = await db
       .from("bookings")
-      .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
       .eq("customer_id", user.id)
       .order("created_at", { ascending: false })
 
@@ -432,24 +437,60 @@ export async function getCustomerBookingStats(): Promise<{
 
 // ─── Admin Actions ────────────────────────────────────────────────────────────
 
-export async function getAllBookings(): Promise<Booking[]> {
+export interface GetAllBookingsResult {
+  bookings: Booking[]
+  error: FormattedSupabaseError | null
+  isConfigured: boolean
+}
+
+export async function getAllBookingsWithStatus(): Promise<GetAllBookingsResult> {
+  if (!isSupabaseConfigured()) {
+    return {
+      bookings: [],
+      error: {
+        message: "Supabase connection is not configured or using placeholder credentials in .env.local.",
+        hint: "Please configure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY with your live Supabase project credentials in .env.local.",
+      },
+      isConfigured: false,
+    }
+  }
+
   try {
     const db = createServiceClient()
     const { data, error } = await db
       .from("bookings")
-      .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
       .order("created_at", { ascending: false })
 
     if (error) {
-      console.error("[getAllBookings]", error)
-      return []
+      const formatted = formatSupabaseError(error)
+      console.error("[getAllBookings] Database query error:", formatted)
+      return {
+        bookings: [],
+        error: formatted,
+        isConfigured: true,
+      }
     }
 
-    return (data as Booking[]) || []
+    return {
+      bookings: (data as Booking[]) || [],
+      error: null,
+      isConfigured: true,
+    }
   } catch (err) {
-    console.error("[getAllBookings] Exception:", err)
-    return []
+    const formatted = formatSupabaseError(err)
+    console.error("[getAllBookings] Exception:", formatted)
+    return {
+      bookings: [],
+      error: formatted,
+      isConfigured: true,
+    }
   }
+}
+
+export async function getAllBookings(): Promise<Booking[]> {
+  const res = await getAllBookingsWithStatus()
+  return res.bookings
 }
 
 export async function getAvailableRiders(scheduledAt: string, excludeBookingId?: string): Promise<Rider[]> {
@@ -709,7 +750,7 @@ export async function acceptBookingByRider(
         .is("rider_id", null)
         .eq("status", "pending")
         .in("service_type", ["ride", "delivery"])
-        .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+        .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
         .maybeSingle()
 
       if (updateError) {
@@ -748,7 +789,7 @@ export async function acceptBookingByRider(
     // Fully retrieve populated booking if RPC succeeded
     const { data: populatedBooking } = await db
       .from("bookings")
-      .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
       .eq("id", bookingId)
       .single()
 
@@ -850,7 +891,7 @@ export async function getProviderRentalBookings(): Promise<Booking[]> {
     const db = createServiceClient()
     const { data, error } = await db
       .from("bookings")
-      .select("*, rider:rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
       .eq("service_type", "rental")
       .order("created_at", { ascending: false })
 

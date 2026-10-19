@@ -14,7 +14,7 @@ const navLinks = [
 
 export function Navbar() {
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/80 bg-background/85 backdrop-blur-md transition-all">
+    <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-white/95 dark:bg-card/95 backdrop-blur-md transition-all shadow-xs">
       <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand Logo */}
         <Link
@@ -29,8 +29,8 @@ export function Navbar() {
             <span className="font-heading text-xl font-bold tracking-tight text-foreground">
               HitsNaGo<span className="text-primary">.</span>
             </span>
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground -mt-1">
-              Local Services
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground -mt-1">
+              LOCAL SERVICES
             </span>
           </div>
         </Link>

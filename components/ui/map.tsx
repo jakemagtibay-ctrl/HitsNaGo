@@ -1,0 +1,1575 @@
+"use client";
+
+import type * as MapLibreGL from "maplibre-gl";
+import type { PopupOptions, MarkerOptions } from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import type * as GeoJSON from "geojson";
+import {
+  createContext,
+  forwardRef,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
+import { X, Minus, Plus, Locate, Maximize, Loader2 } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
+type MapLibreModule = typeof MapLibreGL;
+
+let maplibre: MapLibreModule | null = null;
+let maplibrePromise: Promise<MapLibreModule> | null = null;
+
+function loadMapLibre() {
+  maplibrePromise ??= import("maplibre-gl")
+    .then((lib) => {
+      if (!lib.getWorkerUrl()) {
+        lib.setWorkerUrl("/maplibre-gl-worker.mjs");
+      }
+      maplibre = lib;
+      return lib;
+    })
+    .catch((error) => {
+      maplibrePromise = null;
+      throw error;
+    });
+  return maplibrePromise;
+}
+
+function getMapLibre() {
+  if (!maplibre) throw new Error("maplibre-gl has not loaded yet");
+  return maplibre;
+}
+
+if (typeof window !== "undefined") {
+  loadMapLibre().catch(() => {});
+}
+
+const defaultStyles = {
+  dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+  light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+};
+
+const blankMapStyle: MapLibreGL.StyleSpecification = {
+  version: 8,
+  sources: {},
+  layers: [
+    {
+      id: "background",
+      type: "background",
+      paint: { "background-color": "rgba(0, 0, 0, 0)" },
+    },
+  ],
+};
+
+function useStableValue<T>(value: T): T {
+  const key = useMemo(() => JSON.stringify(value) ?? "", [value]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => value, [key]);
+}
+
+function mergeHoverPaint<T extends Record<string, unknown>>(
+  paint: T,
+  hoverPaint: T | undefined,
+): T {
+  if (!hoverPaint) return paint;
+  const merged: Record<string, unknown> = { ...paint };
+  for (const [key, hoverValue] of Object.entries(hoverPaint)) {
+    if (hoverValue === undefined) continue;
+    const baseValue = merged[key];
+    merged[key] =
+      baseValue === undefined
+        ? hoverValue
+        : [
+            "case",
+            ["boolean", ["feature-state", "hover"], false],
+            hoverValue,
+            baseValue,
+          ];
+  }
+  return merged as T;
+}
+
+type Theme = "light" | "dark";
+
+function getDocumentTheme(): Theme | null {
+  if (typeof document === "undefined") return null;
+  const root = document.documentElement;
+  if (root.classList.contains("dark")) return "dark";
+  if (root.classList.contains("light")) return "light";
+  const dataTheme = root.dataset.theme;
+  if (dataTheme === "dark" || dataTheme === "light") return dataTheme;
+  return null;
+}
+
+function getSystemTheme(): Theme {
+  if (typeof window === "undefined") return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+function useResolvedTheme(themeProp?: "light" | "dark"): Theme {
+  const [detectedTheme, setDetectedTheme] = useState<Theme>(
+    () => getDocumentTheme() ?? getSystemTheme(),
+  );
+
+  useEffect(() => {
+    if (themeProp) return;
+
+    const observer = new MutationObserver(() => {
+      const docTheme = getDocumentTheme();
+      if (docTheme) {
+        setDetectedTheme(docTheme);
+      }
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    });
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleSystemChange = (e: MediaQueryListEvent) => {
+      if (!getDocumentTheme()) {
+        setDetectedTheme(e.matches ? "dark" : "light");
+      }
+    };
+    mediaQuery.addEventListener("change", handleSystemChange);
+
+    return () => {
+      observer.disconnect();
+      mediaQuery.removeEventListener("change", handleSystemChange);
+    };
+  }, [themeProp]);
+
+  return themeProp ?? detectedTheme;
+}
+
+type MapContextValue = {
+  map: MapLibreGL.Map | null;
+  isLoaded: boolean;
+  resolvedTheme: Theme;
+};
+
+const MapContext = createContext<MapContextValue | null>(null);
+
+function useMap() {
+  const context = useContext(MapContext);
+  if (!context) {
+    throw new Error("useMap must be used within a Map component");
+  }
+  return context;
+}
+
+type MapViewport = {
+  center: [number, number];
+  zoom: number;
+  bearing: number;
+  pitch: number;
+};
+
+type MapStyleOption = string | MapLibreGL.StyleSpecification;
+
+type MapRef = MapLibreGL.Map;
+
+type MapProps = {
+  children?: ReactNode;
+  className?: string;
+  theme?: Theme;
+  styles?: {
+    light?: MapStyleOption;
+    dark?: MapStyleOption;
+  };
+  blank?: boolean;
+  projection?: MapLibreGL.ProjectionSpecification;
+  viewport?: Partial<MapViewport>;
+  onViewportChange?: (viewport: MapViewport) => void;
+  loading?: boolean;
+} & Omit<MapLibreGL.MapOptions, "container" | "style">;
+
+function DefaultLoader() {
+  return (
+    <div className="bg-background/50 absolute inset-0 z-10 flex items-center justify-center backdrop-blur-xs">
+      <div className="flex gap-1">
+        <span className="bg-muted-foreground/60 size-1.5 animate-pulse rounded-full" />
+        <span className="bg-muted-foreground/60 size-1.5 animate-pulse rounded-full [animation-delay:150ms]" />
+        <span className="bg-muted-foreground/60 size-1.5 animate-pulse rounded-full [animation-delay:300ms]" />
+      </div>
+    </div>
+  );
+}
+
+function getViewport(map: MapLibreGL.Map): MapViewport {
+  const center = map.getCenter();
+  return {
+    center: [center.lng, center.lat],
+    zoom: map.getZoom(),
+    bearing: map.getBearing(),
+    pitch: map.getPitch(),
+  };
+}
+
+const Map = forwardRef<MapRef, MapProps>(function Map(
+  {
+    children,
+    className,
+    theme: themeProp,
+    styles,
+    blank = false,
+    projection,
+    viewport,
+    onViewportChange,
+    loading = false,
+    ...props
+  },
+  ref,
+) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [mapInstance, setMapInstance] = useState<MapLibreGL.Map | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isStyleLoaded, setIsStyleLoaded] = useState(false);
+  const [pendingStyle, setPendingStyle] = useState<MapStyleOption | null>(null);
+  const currentStyleRef = useRef<MapStyleOption | null>(null);
+  const styleSwapInFlightRef = useRef(false);
+  const internalUpdateRef = useRef(false);
+  const resolvedTheme = useResolvedTheme(themeProp);
+
+  const isControlled = viewport !== undefined && onViewportChange !== undefined;
+
+  const onViewportChangeRef = useRef(onViewportChange);
+  onViewportChangeRef.current = onViewportChange;
+
+  const stableStyles = useStableValue(styles);
+
+  const mapStyles = useMemo(() => {
+    if (stableStyles) {
+      return {
+        dark: stableStyles.dark ?? defaultStyles.dark,
+        light: stableStyles.light ?? defaultStyles.light,
+      };
+    }
+    if (blank) {
+      return { dark: blankMapStyle, light: blankMapStyle };
+    }
+    return defaultStyles;
+  }, [stableStyles, blank]);
+
+  useImperativeHandle(ref, () => mapInstance as MapLibreGL.Map, [mapInstance]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let teardown: (() => void) | undefined;
+
+    const init = (lib: MapLibreModule) => {
+      if (cancelled || !containerRef.current) return;
+
+      const initialStyle =
+        resolvedTheme === "dark" ? mapStyles.dark : mapStyles.light;
+      currentStyleRef.current = initialStyle;
+
+      const map = new lib.Map({
+        container: containerRef.current,
+        style: initialStyle,
+        renderWorldCopies: false,
+        attributionControl: {
+          compact: true,
+        },
+        ...props,
+        ...viewport,
+      });
+
+      const styleLoadHandler = () => {
+        styleSwapInFlightRef.current = false;
+        setIsStyleLoaded(true);
+      };
+      const loadHandler = () => setIsLoaded(true);
+
+      const handleMove = () => {
+        if (internalUpdateRef.current) return;
+        onViewportChangeRef.current?.(getViewport(map));
+      };
+
+      map.on("load", loadHandler);
+      map.on("style.load", styleLoadHandler);
+      map.on("move", handleMove);
+      setMapInstance(map);
+
+      teardown = () => {
+        map.off("load", loadHandler);
+        map.off("style.load", styleLoadHandler);
+        map.off("move", handleMove);
+        map.remove();
+        setIsLoaded(false);
+        setIsStyleLoaded(false);
+        setMapInstance(null);
+      };
+    };
+
+    if (maplibre) init(maplibre);
+    else
+      loadMapLibre().then(init, (error) =>
+        console.error("Failed to load maplibre-gl", error),
+      );
+
+    return () => {
+      cancelled = true;
+      teardown?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!mapInstance || !isControlled || !viewport) return;
+    if (mapInstance.isMoving()) return;
+
+    const current = getViewport(mapInstance);
+    const next = {
+      center: viewport.center ?? current.center,
+      zoom: viewport.zoom ?? current.zoom,
+      bearing: viewport.bearing ?? current.bearing,
+      pitch: viewport.pitch ?? current.pitch,
+    };
+
+    if (
+      next.center[0] === current.center[0] &&
+      next.center[1] === current.center[1] &&
+      next.zoom === current.zoom &&
+      next.bearing === current.bearing &&
+      next.pitch === current.pitch
+    ) {
+      return;
+    }
+
+    internalUpdateRef.current = true;
+    mapInstance.jumpTo(next);
+    internalUpdateRef.current = false;
+  }, [mapInstance, isControlled, viewport]);
+
+  useEffect(() => {
+    if (!mapInstance || !resolvedTheme) return;
+
+    const newStyle =
+      resolvedTheme === "dark" ? mapStyles.dark : mapStyles.light;
+
+    if (currentStyleRef.current === newStyle) return;
+
+    currentStyleRef.current = newStyle;
+    setIsStyleLoaded(false);
+    setPendingStyle(newStyle);
+  }, [mapInstance, resolvedTheme, mapStyles]);
+
+  useEffect(() => {
+    if (!mapInstance || !pendingStyle) return;
+
+    setPendingStyle(null);
+    styleSwapInFlightRef.current = true;
+    mapInstance.setStyle(pendingStyle, { diff: false });
+  }, [mapInstance, pendingStyle]);
+
+  useEffect(() => {
+    if (!mapInstance || !isStyleLoaded || !projection) return;
+    if (styleSwapInFlightRef.current) return;
+    mapInstance.setProjection(projection);
+  }, [mapInstance, isStyleLoaded, projection]);
+
+  const contextValue = useMemo(
+    () => ({
+      map: mapInstance,
+      isLoaded: isLoaded && isStyleLoaded,
+      resolvedTheme,
+    }),
+    [mapInstance, isLoaded, isStyleLoaded, resolvedTheme],
+  );
+
+  return (
+    <MapContext.Provider value={contextValue}>
+      <div
+        ref={containerRef}
+        className={cn("relative h-full w-full", className)}
+      >
+        {(!isLoaded || loading) && <DefaultLoader />}
+        {mapInstance && children}
+      </div>
+    </MapContext.Provider>
+  );
+});
+
+type MarkerContextValue = {
+  marker: MapLibreGL.Marker;
+  map: MapLibreGL.Map | null;
+};
+
+const MarkerContext = createContext<MarkerContextValue | null>(null);
+
+function useMarkerContext() {
+  const context = useContext(MarkerContext);
+  if (!context) {
+    throw new Error("Marker components must be used within MapMarker");
+  }
+  return context;
+}
+
+type MapMarkerProps = {
+  longitude: number;
+  latitude: number;
+  children?: ReactNode;
+  onClick?: (e: MouseEvent) => void;
+  onMouseEnter?: (e: MouseEvent) => void;
+  onMouseLeave?: (e: MouseEvent) => void;
+  onDragStart?: (lngLat: { lng: number; lat: number }) => void;
+  onDrag?: (lngLat: { lng: number; lat: number }) => void;
+  onDragEnd?: (lngLat: { lng: number; lat: number }) => void;
+  draggable?: boolean;
+} & Omit<MarkerOptions, "element">;
+
+function MapMarker({
+  longitude,
+  latitude,
+  children,
+  onClick,
+  onMouseEnter,
+  onMouseLeave,
+  onDragStart,
+  onDrag,
+  onDragEnd,
+  draggable = false,
+  ...markerOptions
+}: MapMarkerProps) {
+  const { map } = useMap();
+
+  const callbacksRef = useRef({
+    onClick,
+    onMouseEnter,
+    onMouseLeave,
+    onDragStart,
+    onDrag,
+    onDragEnd,
+  });
+  callbacksRef.current = {
+    onClick,
+    onMouseEnter,
+    onMouseLeave,
+    onDragStart,
+    onDrag,
+    onDragEnd,
+  };
+
+  const marker = useMemo(() => {
+    const { Marker } = getMapLibre();
+    const markerInstance = new Marker({
+      ...markerOptions,
+      element: document.createElement("div"),
+      draggable,
+    }).setLngLat([longitude, latitude]);
+
+    const handleClick = (e: MouseEvent) => callbacksRef.current.onClick?.(e);
+    const handleMouseEnter = (e: MouseEvent) =>
+      callbacksRef.current.onMouseEnter?.(e);
+    const handleMouseLeave = (e: MouseEvent) =>
+      callbacksRef.current.onMouseLeave?.(e);
+
+    markerInstance.getElement()?.addEventListener("click", handleClick);
+    markerInstance
+      .getElement()
+      ?.addEventListener("mouseenter", handleMouseEnter);
+    markerInstance
+      .getElement()
+      ?.addEventListener("mouseleave", handleMouseLeave);
+
+    const handleDragStart = () => {
+      const lngLat = markerInstance.getLngLat();
+      callbacksRef.current.onDragStart?.({ lng: lngLat.lng, lat: lngLat.lat });
+    };
+    const handleDrag = () => {
+      const lngLat = markerInstance.getLngLat();
+      callbacksRef.current.onDrag?.({ lng: lngLat.lng, lat: lngLat.lat });
+    };
+    const handleDragEnd = () => {
+      const lngLat = markerInstance.getLngLat();
+      callbacksRef.current.onDragEnd?.({ lng: lngLat.lng, lat: lngLat.lat });
+    };
+
+    markerInstance.on("dragstart", handleDragStart);
+    markerInstance.on("drag", handleDrag);
+    markerInstance.on("dragend", handleDragEnd);
+
+    return markerInstance;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!map) return;
+    marker.addTo(map);
+    return () => {
+      marker.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
+
+  const { offset, rotation, rotationAlignment, pitchAlignment } = markerOptions;
+
+  useEffect(() => {
+    const current = marker.getLngLat();
+    if (current.lng !== longitude || current.lat !== latitude) {
+      marker.setLngLat([longitude, latitude]);
+    }
+
+    if (marker.isDraggable() !== draggable) {
+      marker.setDraggable(draggable);
+    }
+
+    const currentOffset = marker.getOffset();
+    const newOffset = offset ?? [0, 0];
+    const [newOffsetX, newOffsetY] = Array.isArray(newOffset)
+      ? newOffset
+      : [newOffset.x, newOffset.y];
+    if (currentOffset.x !== newOffsetX || currentOffset.y !== newOffsetY) {
+      marker.setOffset(newOffset);
+    }
+
+    if (marker.getRotation() !== (rotation ?? 0)) {
+      marker.setRotation(rotation ?? 0);
+    }
+    if (marker.getRotationAlignment() !== (rotationAlignment ?? "auto")) {
+      marker.setRotationAlignment(rotationAlignment ?? "auto");
+    }
+    if (marker.getPitchAlignment() !== (pitchAlignment ?? "auto")) {
+      marker.setPitchAlignment(pitchAlignment ?? "auto");
+    }
+  }, [
+    marker,
+    longitude,
+    latitude,
+    draggable,
+    offset,
+    rotation,
+    rotationAlignment,
+    pitchAlignment,
+  ]);
+
+  return (
+    <MarkerContext.Provider value={{ marker, map }}>
+      {children}
+    </MarkerContext.Provider>
+  );
+}
+
+type MarkerContentProps = {
+  children?: ReactNode;
+  className?: string;
+};
+
+function MarkerContent({ children, className }: MarkerContentProps) {
+  const { marker } = useMarkerContext();
+
+  return createPortal(
+    <div className={cn("relative cursor-pointer", className)}>
+      {children || <DefaultMarkerIcon />}
+    </div>,
+    marker.getElement(),
+  );
+}
+
+function DefaultMarkerIcon() {
+  return (
+    <div className="relative h-4 w-4 rounded-full border-2 border-white bg-teal-500 shadow-lg" />
+  );
+}
+
+function PopupCloseButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Close popup"
+      className="focus-visible:ring-ring hover:bg-muted text-foreground absolute top-1 right-1 z-10 inline-flex size-5 cursor-pointer items-center justify-center rounded-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+    >
+      <X className="size-3.5" />
+    </button>
+  );
+}
+
+type MarkerPopupProps = {
+  children: ReactNode;
+  className?: string;
+  closeButton?: boolean;
+} & Omit<PopupOptions, "className" | "closeButton">;
+
+function MarkerPopup({
+  children,
+  className,
+  closeButton = false,
+  ...popupOptions
+}: MarkerPopupProps) {
+  const { marker, map } = useMarkerContext();
+  const container = useMemo(() => document.createElement("div"), []);
+  const { offset, maxWidth } = popupOptions;
+
+  const popup = useMemo(() => {
+    const { Popup } = getMapLibre();
+    const popupInstance = new Popup({
+      offset: 16,
+      ...popupOptions,
+      closeButton: false,
+    })
+      .setMaxWidth("none")
+      .setDOMContent(container);
+
+    return popupInstance;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!map) return;
+
+    popup.setDOMContent(container);
+    marker.setPopup(popup);
+
+    return () => {
+      marker.setPopup(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
+
+  useEffect(() => {
+    popup.setOffset(offset ?? 16);
+    if (maxWidth) {
+      popup.setMaxWidth(maxWidth);
+    }
+  }, [popup, offset, maxWidth]);
+
+  const handleClose = () => popup.remove();
+
+  return createPortal(
+    <div
+      className={cn(
+        "bg-popover text-popover-foreground relative max-w-62 rounded-md border p-3 shadow-md",
+        "animate-in fade-in-0 zoom-in-95 duration-200 ease-out",
+        className,
+      )}
+    >
+      {closeButton && <PopupCloseButton onClick={handleClose} />}
+      {children}
+    </div>,
+    container,
+  );
+}
+
+type MarkerTooltipProps = {
+  children: ReactNode;
+  className?: string;
+} & Omit<PopupOptions, "className" | "closeButton" | "closeOnClick">;
+
+function MarkerTooltip({
+  children,
+  className,
+  ...popupOptions
+}: MarkerTooltipProps) {
+  const { marker, map } = useMarkerContext();
+  const container = useMemo(() => document.createElement("div"), []);
+  const { offset, maxWidth } = popupOptions;
+
+  const tooltip = useMemo(() => {
+    const { Popup } = getMapLibre();
+    const tooltipInstance = new Popup({
+      offset: 16,
+      ...popupOptions,
+      closeOnClick: true,
+      closeButton: false,
+    }).setMaxWidth("none");
+
+    return tooltipInstance;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!map) return;
+
+    tooltip.setDOMContent(container);
+
+    const handleMouseEnter = () => {
+      tooltip.setLngLat(marker.getLngLat()).addTo(map);
+    };
+    const handleMouseLeave = () => tooltip.remove();
+
+    marker.getElement()?.addEventListener("mouseenter", handleMouseEnter);
+    marker.getElement()?.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      marker.getElement()?.removeEventListener("mouseenter", handleMouseEnter);
+      marker.getElement()?.removeEventListener("mouseleave", handleMouseLeave);
+      tooltip.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
+
+  useEffect(() => {
+    tooltip.setOffset(offset ?? 16);
+    if (maxWidth) {
+      tooltip.setMaxWidth(maxWidth);
+    }
+  }, [tooltip, offset, maxWidth]);
+
+  return createPortal(
+    <div
+      className={cn(
+        "bg-foreground text-background pointer-events-none rounded-md px-2 py-1 text-xs text-balance shadow-md",
+        "animate-in fade-in-0 zoom-in-95 duration-200 ease-out",
+        className,
+      )}
+    >
+      {children}
+    </div>,
+    container,
+  );
+}
+
+type MarkerLabelProps = {
+  children: ReactNode;
+  className?: string;
+  position?: "top" | "bottom";
+};
+
+function MarkerLabel({
+  children,
+  className,
+  position = "top",
+}: MarkerLabelProps) {
+  const positionClasses = {
+    top: "bottom-full mb-1",
+    bottom: "top-full mt-1",
+  };
+
+  return (
+    <div
+      className={cn(
+        "absolute left-1/2 -translate-x-1/2 whitespace-nowrap",
+        "text-foreground text-[10px] font-medium",
+        positionClasses[position],
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+type MapControlsProps = {
+  position?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  showZoom?: boolean;
+  showCompass?: boolean;
+  showLocate?: boolean;
+  showFullscreen?: boolean;
+  className?: string;
+  onLocate?: (coords: { longitude: number; latitude: number }) => void;
+};
+
+const positionClasses = {
+  "top-left": "top-2 left-2",
+  "top-right": "top-2 right-2",
+  "bottom-left": "bottom-2 left-2",
+  "bottom-right": "bottom-10 right-2",
+};
+
+function ControlGroup({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="border-border bg-background [&>button:not(:last-child)]:border-border flex flex-col overflow-hidden rounded-md border shadow-sm [&>button:not(:last-child)]:border-b">
+      {children}
+    </div>
+  );
+}
+
+function ControlButton({
+  onClick,
+  label,
+  children,
+  disabled = false,
+}: {
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      type="button"
+      className={cn(
+        "flex size-8 items-center justify-center transition-colors",
+        "first:rounded-t-md last:rounded-b-md",
+        "hover:bg-accent dark:hover:bg-accent/40",
+        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
+        "disabled:pointer-events-none disabled:opacity-50",
+      )}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MapControls({
+  position = "bottom-right",
+  showZoom = true,
+  showCompass = false,
+  showLocate = false,
+  showFullscreen = false,
+  className,
+  onLocate,
+}: MapControlsProps) {
+  const { map } = useMap();
+  const [waitingForLocation, setWaitingForLocation] = useState(false);
+
+  const handleZoomIn = useCallback(() => {
+    map?.zoomTo(map.getZoom() + 1, { duration: 300 });
+  }, [map]);
+
+  const handleZoomOut = useCallback(() => {
+    map?.zoomTo(map.getZoom() - 1, { duration: 300 });
+  }, [map]);
+
+  const handleResetBearing = useCallback(() => {
+    map?.resetNorthPitch({ duration: 300 });
+  }, [map]);
+
+  const handleLocate = useCallback(() => {
+    if (!("geolocation" in navigator)) return;
+    setWaitingForLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = {
+          longitude: pos.coords.longitude,
+          latitude: pos.coords.latitude,
+        };
+        map?.flyTo({
+          center: [coords.longitude, coords.latitude],
+          zoom: 14,
+          duration: 1500,
+        });
+        onLocate?.(coords);
+        setWaitingForLocation(false);
+      },
+      (error) => {
+        console.error("Error getting location:", error);
+        setWaitingForLocation(false);
+      },
+      { timeout: 10000 },
+    );
+  }, [map, onLocate]);
+
+  const handleFullscreen = useCallback(() => {
+    const container = map?.getContainer();
+    if (!container) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      container.requestFullscreen();
+    }
+  }, [map]);
+
+  return (
+    <div
+      className={cn(
+        "absolute z-10 flex flex-col gap-1.5",
+        positionClasses[position],
+        className,
+      )}
+    >
+      {showZoom && (
+        <ControlGroup>
+          <ControlButton onClick={handleZoomIn} label="Zoom in">
+            <Plus className="size-4" />
+          </ControlButton>
+          <ControlButton onClick={handleZoomOut} label="Zoom out">
+            <Minus className="size-4" />
+          </ControlButton>
+        </ControlGroup>
+      )}
+      {showCompass && (
+        <ControlGroup>
+          <CompassButton onClick={handleResetBearing} />
+        </ControlGroup>
+      )}
+      {showLocate && (
+        <ControlGroup>
+          <ControlButton
+            onClick={handleLocate}
+            label="Find my location"
+            disabled={waitingForLocation}
+          >
+            {waitingForLocation ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Locate className="size-4" />
+            )}
+          </ControlButton>
+        </ControlGroup>
+      )}
+      {showFullscreen && (
+        <ControlGroup>
+          <ControlButton onClick={handleFullscreen} label="Toggle fullscreen">
+            <Maximize className="size-4" />
+          </ControlButton>
+        </ControlGroup>
+      )}
+    </div>
+  );
+}
+
+function CompassButton({ onClick }: { onClick: () => void }) {
+  const { map } = useMap();
+  const compassRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    if (!map || !compassRef.current) return;
+
+    const compass = compassRef.current;
+
+    const updateRotation = () => {
+      const bearing = map.getBearing();
+      const pitch = map.getPitch();
+      compass.style.transform = `rotateX(${pitch}deg) rotateZ(${-bearing}deg)`;
+    };
+
+    map.on("rotate", updateRotation);
+    map.on("pitch", updateRotation);
+    updateRotation();
+
+    return () => {
+      map.off("rotate", updateRotation);
+      map.off("pitch", updateRotation);
+    };
+  }, [map]);
+
+  return (
+    <ControlButton onClick={onClick} label="Reset bearing to north">
+      <svg
+        ref={compassRef}
+        viewBox="0 0 24 24"
+        className="size-5"
+        style={{ transformStyle: "preserve-3d" }}
+      >
+        <path d="M12 2L16 12H12V2Z" className="fill-red-500" />
+        <path d="M12 2L8 12H12V2Z" className="fill-red-300" />
+        <path d="M12 22L16 12H12V22Z" className="fill-muted-foreground/60" />
+        <path d="M12 22L8 12H12V22Z" className="fill-muted-foreground/30" />
+      </svg>
+    </ControlButton>
+  );
+}
+
+type MapPopupProps = {
+  longitude: number;
+  latitude: number;
+  onClose?: () => void;
+  children: ReactNode;
+  className?: string;
+  closeButton?: boolean;
+} & Omit<PopupOptions, "className" | "closeButton">;
+
+function MapPopup({
+  longitude,
+  latitude,
+  onClose,
+  children,
+  className,
+  closeButton = false,
+  ...popupOptions
+}: MapPopupProps) {
+  const { map } = useMap();
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const container = useMemo(() => document.createElement("div"), []);
+  const { offset, maxWidth } = popupOptions;
+
+  const popup = useMemo(() => {
+    const { Popup } = getMapLibre();
+    const popupInstance = new Popup({
+      offset: 16,
+      ...popupOptions,
+      closeButton: false,
+    })
+      .setMaxWidth("none")
+      .setLngLat([longitude, latitude]);
+
+    return popupInstance;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!map) return;
+
+    const onCloseProp = () => onCloseRef.current?.();
+
+    popup.on("close", onCloseProp);
+
+    popup.setDOMContent(container);
+    popup.addTo(map);
+
+    return () => {
+      popup.off("close", onCloseProp);
+      if (popup.isOpen()) {
+        popup.remove();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
+
+  useEffect(() => {
+    const current = popup.getLngLat();
+    if (!current || current.lng !== longitude || current.lat !== latitude) {
+      popup.setLngLat([longitude, latitude]);
+    }
+    popup.setOffset(offset ?? 16);
+    if (maxWidth) {
+      popup.setMaxWidth(maxWidth);
+    }
+  }, [popup, longitude, latitude, offset, maxWidth]);
+
+  const handleClose = () => {
+    popup.remove();
+  };
+
+  return createPortal(
+    <div
+      className={cn(
+        "bg-popover text-popover-foreground relative max-w-62 rounded-md border p-3 shadow-md",
+        "animate-in fade-in-0 zoom-in-95 duration-200 ease-out",
+        className,
+      )}
+    >
+      {closeButton && <PopupCloseButton onClick={handleClose} />}
+      {children}
+    </div>,
+    container,
+  );
+}
+
+type RouteAnchor = "start" | "end" | "progress" | number;
+
+type RouteMeasure = {
+  cumulative: number[];
+  total: number;
+};
+
+const EMPTY_ROUTE_MEASURE: RouteMeasure = { cumulative: [], total: 0 };
+const EMPTY_COORDINATES: [number, number][] = [];
+
+function resolveBeforeId(map: MapLibreGL.Map, beforeId: string | undefined) {
+  return beforeId && map.getLayer(beforeId) ? beforeId : undefined;
+}
+
+function clampFraction(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+function measureRoute(coordinates: [number, number][]): RouteMeasure {
+  if (coordinates.length < 2) return EMPTY_ROUTE_MEASURE;
+
+  const cumulative = [0];
+  let total = 0;
+
+  for (let i = 1; i < coordinates.length; i += 1) {
+    const [lng1, lat1] = coordinates[i - 1];
+    const [lng2, lat2] = coordinates[i];
+    const midLat = ((lat1 + lat2) / 2) * (Math.PI / 180);
+    total += Math.hypot((lng2 - lng1) * Math.cos(midLat), lat2 - lat1);
+    cumulative.push(total);
+  }
+
+  return { cumulative, total };
+}
+
+function findSegmentIndex(cumulative: number[], distance: number) {
+  let low = 0;
+  let high = cumulative.length - 1;
+
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (cumulative[mid] < distance) low = mid + 1;
+    else high = mid;
+  }
+
+  return Math.min(low === 0 ? 0 : low - 1, cumulative.length - 2);
+}
+
+function pointAtFraction(
+  coordinates: [number, number][],
+  measure: RouteMeasure,
+  fraction: number,
+): [number, number] | null {
+  if (coordinates.length === 0) return null;
+  if (coordinates.length === 1 || measure.total === 0) return coordinates[0];
+
+  const target = measure.total * clampFraction(fraction);
+  const index = findSegmentIndex(measure.cumulative, target);
+  const [lng1, lat1] = coordinates[index];
+  const [lng2, lat2] = coordinates[index + 1];
+  const segment = measure.cumulative[index + 1] - measure.cumulative[index];
+  const ratio =
+    segment === 0 ? 0 : (target - measure.cumulative[index]) / segment;
+
+  return [lng1 + (lng2 - lng1) * ratio, lat1 + (lat2 - lat1) * ratio];
+}
+
+function sliceAtFraction(
+  coordinates: [number, number][],
+  measure: RouteMeasure,
+  fraction: number,
+): [number, number][] {
+  if (coordinates.length < 2) return [];
+
+  const t = clampFraction(fraction);
+  if (t <= 0 || measure.total === 0) return [];
+  if (t >= 1) return coordinates;
+
+  const target = measure.total * t;
+  const index = findSegmentIndex(measure.cumulative, target);
+  const point = pointAtFraction(coordinates, measure, t);
+  const traveled = coordinates.slice(0, index + 1);
+  if (point) traveled.push(point);
+
+  return traveled;
+}
+
+type RouteContextValue = {
+  id: string;
+  ready: boolean;
+  coordinates: [number, number][];
+  traveled: [number, number][];
+  progress: number | undefined;
+  color: string;
+  width: number;
+  opacity: number;
+  dashArray: [number, number] | undefined;
+  beforeId: string | undefined;
+  pointAt: (at: RouteAnchor) => [number, number] | null;
+  registerLayer: (layerId: string) => () => void;
+};
+
+const RouteContext = createContext<RouteContextValue | null>(null);
+
+function useMapRoute() {
+  const context = useContext(RouteContext);
+  if (!context) {
+    throw new Error("Route components must be used within MapRoute");
+  }
+  return context;
+}
+
+type MapRouteProps = {
+  id?: string;
+  coordinates: [number, number][];
+  color?: string;
+  width?: number;
+  opacity?: number;
+  dashArray?: [number, number];
+  progress?: number;
+  active?: boolean;
+  activeColor?: string;
+  activeWidth?: number;
+  activeOpacity?: number;
+  activeDashArray?: [number, number];
+  beforeId?: string;
+  onClick?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  interactive?: boolean;
+  children?: ReactNode;
+};
+
+function MapRoute({
+  id: propId,
+  coordinates: coordinatesProp,
+  color = "#0d9488",
+  width = 4,
+  opacity = 0.85,
+  dashArray,
+  progress,
+  active = false,
+  activeColor,
+  activeWidth,
+  activeOpacity,
+  activeDashArray,
+  beforeId,
+  onClick,
+  onMouseEnter,
+  onMouseLeave,
+  interactive = true,
+  children,
+}: MapRouteProps) {
+  const { map, isLoaded } = useMap();
+  const autoId = useId();
+  const id = propId ?? autoId;
+  const sourceId = `route-source-${id}`;
+  const layerId = `route-layer-${id}`;
+  const [ready, setReady] = useState(false);
+
+  const coordinates =
+    coordinatesProp.length > 0 ? coordinatesProp : EMPTY_COORDINATES;
+
+  const resolvedColor = active ? (activeColor ?? color) : color;
+  const resolvedWidth = active ? (activeWidth ?? width) : width;
+  const resolvedOpacity = active ? (activeOpacity ?? opacity) : opacity;
+  const resolvedDashArray = active ? (activeDashArray ?? dashArray) : dashArray;
+
+  const measure = useMemo(() => measureRoute(coordinates), [coordinates]);
+  const traveled = useMemo(
+    () =>
+      progress === undefined
+        ? []
+        : sliceAtFraction(coordinates, measure, progress),
+    [coordinates, measure, progress],
+  );
+
+  const pointAt = useCallback(
+    (at: RouteAnchor) => {
+      if (coordinates.length === 0) return null;
+      if (at === "start") return coordinates[0];
+      if (at === "end") return coordinates[coordinates.length - 1];
+      if (at === "progress") {
+        if (progress === undefined) return null;
+        return pointAtFraction(coordinates, measure, progress);
+      }
+      return pointAtFraction(coordinates, measure, at);
+    },
+    [coordinates, measure, progress],
+  );
+
+  const childLayersRef = useRef<string[]>([]);
+  const registerLayer = useCallback((childLayerId: string) => {
+    childLayersRef.current = [...childLayersRef.current, childLayerId];
+    return () => {
+      childLayersRef.current = childLayersRef.current.filter(
+        (entry) => entry !== childLayerId,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded || !map) return;
+
+    try {
+      if (!map.getSource(sourceId)) {
+        map.addSource(sourceId, {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates: [] },
+          },
+        });
+      }
+
+      if (!map.getLayer(layerId)) {
+        map.addLayer(
+          {
+            id: layerId,
+            type: "line",
+            source: sourceId,
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: {
+              "line-color": resolvedColor,
+              "line-width": resolvedWidth,
+              "line-opacity": resolvedOpacity,
+              ...(resolvedDashArray && { "line-dasharray": resolvedDashArray }),
+            },
+          },
+          resolveBeforeId(map, beforeId),
+        );
+      }
+    } catch {
+      // ignore
+    }
+
+    setReady(true);
+
+    return () => {
+      setReady(false);
+      try {
+        if (map.getLayer(layerId)) map.removeLayer(layerId);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+      } catch {
+        // ignore
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, map]);
+
+  useEffect(() => {
+    if (!isLoaded || !map) return;
+
+    const source = map.getSource(sourceId) as MapLibreGL.GeoJSONSource;
+    if (source) {
+      source.setData({
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: coordinates.length < 2 ? [] : coordinates,
+        },
+      });
+    }
+  }, [isLoaded, map, coordinates, sourceId]);
+
+  useEffect(() => {
+    if (!isLoaded || !map || !map.getLayer(layerId)) return;
+
+    map.setPaintProperty(layerId, "line-color", resolvedColor);
+    map.setPaintProperty(layerId, "line-width", resolvedWidth);
+    map.setPaintProperty(layerId, "line-opacity", resolvedOpacity);
+    if (resolvedDashArray) {
+      map.setPaintProperty(layerId, "line-dasharray", resolvedDashArray);
+    }
+  }, [
+    isLoaded,
+    map,
+    layerId,
+    resolvedColor,
+    resolvedWidth,
+    resolvedOpacity,
+    resolvedDashArray,
+  ]);
+
+  useEffect(() => {
+    if (!isLoaded || !map || !interactive) return;
+
+    const handleClick = () => {
+      onClick?.();
+    };
+    const handleMouseEnter = () => {
+      map.getCanvas().style.cursor = "pointer";
+      onMouseEnter?.();
+    };
+    const handleMouseLeave = () => {
+      map.getCanvas().style.cursor = "";
+      onMouseLeave?.();
+    };
+
+    map.on("click", layerId, handleClick);
+    map.on("mouseenter", layerId, handleMouseEnter);
+    map.on("mouseleave", layerId, handleMouseLeave);
+
+    return () => {
+      map.off("click", layerId, handleClick);
+      map.off("mouseenter", layerId, handleMouseEnter);
+      map.off("mouseleave", layerId, handleMouseLeave);
+    };
+  }, [
+    isLoaded,
+    map,
+    layerId,
+    onClick,
+    onMouseEnter,
+    onMouseLeave,
+    interactive,
+  ]);
+
+  const contextValue = useMemo(
+    () => ({
+      id,
+      ready,
+      coordinates,
+      traveled,
+      progress,
+      color: resolvedColor,
+      width: resolvedWidth,
+      opacity: resolvedOpacity,
+      dashArray: resolvedDashArray,
+      beforeId,
+      pointAt,
+      registerLayer,
+    }),
+    [
+      id,
+      ready,
+      coordinates,
+      traveled,
+      progress,
+      resolvedColor,
+      resolvedWidth,
+      resolvedOpacity,
+      resolvedDashArray,
+      beforeId,
+      pointAt,
+      registerLayer,
+    ],
+  );
+
+  return (
+    <RouteContext.Provider value={contextValue}>
+      {children}
+    </RouteContext.Provider>
+  );
+}
+
+type RouteProgressProps = {
+  color?: string;
+  width?: number;
+  opacity?: number;
+  dashArray?: [number, number];
+};
+
+function RouteProgress({
+  color,
+  width,
+  opacity,
+  dashArray,
+}: RouteProgressProps) {
+  const { map, isLoaded } = useMap();
+  const route = useMapRoute();
+  const { ready, traveled, registerLayer, beforeId } = route;
+
+  const sourceId = `route-progress-source-${route.id}`;
+  const layerId = `route-progress-layer-${route.id}`;
+
+  const resolvedColor = color ?? route.color;
+  const resolvedWidth = width ?? route.width;
+  const resolvedOpacity = opacity ?? route.opacity;
+
+  useEffect(() => {
+    if (!ready || !map) return;
+
+    try {
+      if (!map.getSource(sourceId)) {
+        map.addSource(sourceId, {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates: [] },
+          },
+        });
+      }
+
+      if (!map.getLayer(layerId)) {
+        map.addLayer(
+          {
+            id: layerId,
+            type: "line",
+            source: sourceId,
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: {
+              "line-color": resolvedColor,
+              "line-width": resolvedWidth,
+              "line-opacity": resolvedOpacity,
+              ...(dashArray && { "line-dasharray": dashArray }),
+            },
+          },
+          resolveBeforeId(map, beforeId),
+        );
+      }
+    } catch {
+      // ignore
+    }
+
+    const unregister = registerLayer(layerId);
+
+    return () => {
+      unregister();
+      try {
+        if (map.getLayer(layerId)) map.removeLayer(layerId);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+      } catch {
+        // ignore
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, map]);
+
+  useEffect(() => {
+    if (!ready || !map) return;
+
+    const source = map.getSource(sourceId) as MapLibreGL.GeoJSONSource;
+    if (source) {
+      source.setData({
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: traveled.length < 2 ? [] : traveled,
+        },
+      });
+    }
+  }, [ready, map, traveled, sourceId]);
+
+  useEffect(() => {
+    if (!isLoaded || !map || !map.getLayer(layerId)) return;
+
+    map.setPaintProperty(layerId, "line-color", resolvedColor);
+    map.setPaintProperty(layerId, "line-width", resolvedWidth);
+    map.setPaintProperty(layerId, "line-opacity", resolvedOpacity);
+    if (dashArray) {
+      map.setPaintProperty(layerId, "line-dasharray", dashArray);
+    }
+  }, [
+    isLoaded,
+    map,
+    layerId,
+    resolvedColor,
+    resolvedWidth,
+    resolvedOpacity,
+    dashArray,
+  ]);
+
+  return null;
+}
+
+type RouteMarkerProps = {
+  at: RouteAnchor;
+} & Omit<MapMarkerProps, "longitude" | "latitude">;
+
+function RouteMarker({ at, children, ...markerProps }: RouteMarkerProps) {
+  const { pointAt } = useMapRoute();
+  const position = pointAt(at);
+
+  if (!position) return null;
+
+  return (
+    <MapMarker longitude={position[0]} latitude={position[1]} {...markerProps}>
+      {children}
+    </MapMarker>
+  );
+}
+
+export {
+  Map,
+  useMap,
+  MapMarker,
+  MarkerContent,
+  MarkerPopup,
+  MarkerTooltip,
+  MarkerLabel,
+  MapPopup,
+  MapControls,
+  MapRoute,
+  RouteProgress,
+  RouteMarker,
+};
+
+export type {
+  MapRef,
+  MapViewport,
+  MapStyleOption,
+  MapProps,
+  MapMarkerProps,
+  MarkerContentProps,
+  MarkerPopupProps,
+  MarkerTooltipProps,
+  MarkerLabelProps,
+  MapControlsProps,
+  MapPopupProps,
+  MapRouteProps,
+  RouteProgressProps,
+  RouteMarkerProps,
+  RouteAnchor,
+};

@@ -14,7 +14,11 @@ import { mockNotifications } from "@/lib/mock-data/notifications"
 import { cn } from "@/lib/utils"
 import type { Notification } from "@/types/notification"
 
-export function NotificationMenu() {
+interface NotificationMenuProps {
+  role?: string
+}
+
+export function NotificationMenu({ role }: NotificationMenuProps = {}) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [notifications, setNotifications] = React.useState<Notification[]>(mockNotifications)
   const menuRef = React.useRef<HTMLDivElement>(null)
@@ -169,6 +173,17 @@ export function NotificationMenu() {
                 )
               })
             )}
+          </div>
+
+          {/* Footer link to full notification center for admin */}
+          <div className="p-2 border-t border-border/60 bg-muted/20 text-center">
+            <Link
+              href={role === "admin" ? "/dashboard/admin/notifications" : "/dashboard"}
+              onClick={() => setIsOpen(false)}
+              className="text-[11px] font-semibold text-primary hover:underline"
+            >
+              {role === "admin" ? "View Full Operations Alert Feed →" : "Dashboard Overview →"}
+            </Link>
           </div>
         </div>
       )}

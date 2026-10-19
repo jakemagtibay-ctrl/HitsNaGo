@@ -35,10 +35,10 @@ function MapLoadingSkeleton({ height = "440px", title }: { height?: string; titl
 }
 
 /**
- * Dynamically imported Leaflet map component with SSR disabled
+ * Dynamically imported MapCN MapLibre component with SSR disabled
  */
-const DynamicLeafletMap = dynamic(
-  () => import("./leaflet-map-view").then((mod) => mod.LeafletMapView),
+const DynamicMapcnMap = dynamic(
+  () => import("./mapcn-map-view").then((mod) => mod.MapcnMapView),
   {
     ssr: false,
     loading: ({ error }) => {
@@ -55,9 +55,9 @@ const DynamicLeafletMap = dynamic(
 )
 
 /**
- * Primary Reusable Butuan City Map Component
+ * Primary Reusable Butuan City Map Component (Powered by MapCN)
  * Safe for use in both Server and Client subtrees.
  */
 export function ButuanCityMap(props: ButuanCityMapProps) {
-  return <DynamicLeafletMap {...props} />
+  return <DynamicMapcnMap {...props} />
 }

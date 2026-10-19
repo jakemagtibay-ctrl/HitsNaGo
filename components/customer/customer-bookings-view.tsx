@@ -13,12 +13,15 @@ import {
   Navigation01Icon,
   Cancel01Icon,
   Alert01Icon,
+  Message01Icon,
 } from "@hugeicons/core-free-icons"
 import { BookingStatusBadge } from "@/components/dashboard/status-badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { CancelBookingDialog } from "@/components/booking/cancel-booking-dialog"
 import { EmergencyReportDialog } from "@/components/booking/emergency-report-dialog"
+import { CustomerTripTrackingModal } from "@/components/customer/customer-trip-tracking-modal"
+import { getOrCreateBookingConversation, createSupportConversation } from "@/lib/actions/messaging"
 import { parseBookingCancellationInfo } from "@/lib/cancellations/metadata"
 import { cn } from "@/lib/utils"
 import type { Booking } from "@/lib/actions/bookings"
@@ -32,6 +35,7 @@ export function CustomerBookingsView({ initialBookings }: CustomerBookingsViewPr
   const [bookings, setBookings] = React.useState<Booking[]>(initialBookings)
   const [cancellingBooking, setCancellingBooking] = React.useState<Booking | null>(null)
   const [emergencyBooking, setEmergencyBooking] = React.useState<Booking | null>(null)
+  const [trackingBooking, setTrackingBooking] = React.useState<Booking | null>(null)
 
   const [prevInitialBookings, setPrevInitialBookings] = React.useState(initialBookings)
 
@@ -193,7 +197,75 @@ export function CustomerBookingsView({ initialBookings }: CustomerBookingsViewPr
                       <span className="text-xs text-muted-foreground ml-2 capitalize font-medium">({booking.payment_mode})</span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Track Route & Map */}
+                      {booking.status !== "cancelled" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setTrackingBooking(booking)}
+                          className="h-8 text-xs font-semibold gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
+                        >
+                          <HugeiconsIcon icon={Navigation01Icon} size={13} />
+                          <span>View Map & Route</span>
+                        </Button>
+                      )}
+
+                      {/* Message Rider button - only when rider assigned and status is active (assigned, accepted, in_progress) */}
+                      {Boolean(booking.rider_id || booking.rider) &&
+                        ["assigned", "accepted", "in_progress"].includes(booking.status) && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                const res = await getOrCreateBookingConversation(booking.id)
+                                if (res.conversationId) {
+                                  router.push(`/dashboard/customer/messages?conversationId=${res.conversationId}`)
+                                } else {
+                                  router.push(`/dashboard/customer/messages?bookingId=${booking.id}`)
+                                }
+                              } catch {
+                                router.push(`/dashboard/customer/messages?bookingId=${booking.id}`)
+                              }
+                            }}
+                            className="h-8 text-xs font-semibold gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+                          >
+                            <HugeiconsIcon icon={Message01Icon} size={13} className="text-primary" />
+                            <span>Message Rider</span>
+                          </Button>
+                        )}
+
+                      {/* Message Support button - available for all non-cancelled bookings */}
+                      {booking.status !== "cancelled" && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const res = await createSupportConversation(
+                                `Inquiry for ${booking.reference}`,
+                                booking.id
+                              )
+                              if (res.conversationId) {
+                                router.push(`/dashboard/customer/messages?conversationId=${res.conversationId}`)
+                              } else {
+                                router.push("/dashboard/customer/messages")
+                              }
+                            } catch {
+                              router.push("/dashboard/customer/messages")
+                            }
+                          }}
+                          className="h-8 text-xs font-semibold gap-1.5 text-muted-foreground hover:text-foreground"
+                        >
+                          <HugeiconsIcon icon={Message01Icon} size={13} className="text-muted-foreground" />
+                          <span>Message Support</span>
+                        </Button>
+                      )}
+
                       {/* Emergency Report Button for active trip */}
                       {isInProgress && (
                         <Button
@@ -261,6 +333,15 @@ export function CustomerBookingsView({ initialBookings }: CustomerBookingsViewPr
           isOpen={!!emergencyBooking}
           onClose={() => setEmergencyBooking(null)}
           onSuccess={handleRefresh}
+        />
+      )}
+
+      {/* Trip Tracking & Route Map Modal */}
+      {trackingBooking && (
+        <CustomerTripTrackingModal
+          booking={trackingBooking}
+          isOpen={!!trackingBooking}
+          onClose={() => setTrackingBooking(null)}
         />
       )}
     </div>

@@ -1,6 +1,11 @@
 "use server"
 
-import { createServiceClient } from "@/lib/supabase"
+import {
+  createServiceClient,
+  formatSupabaseError,
+  isSupabaseConfigured,
+  type FormattedSupabaseError,
+} from "@/lib/supabase"
 import { clerkClient } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { getAdminEmails } from "@/lib/auth/roles"
@@ -70,7 +75,24 @@ export interface AdminDashboardMetrics {
 
 // ─── RIDERS ACTIONS ──────────────────────────────────────────────────────────
 
-export async function getAllRiders(): Promise<AdminRiderItem[]> {
+export interface GetAllRidersResult {
+  riders: AdminRiderItem[]
+  error: FormattedSupabaseError | null
+  isConfigured: boolean
+}
+
+export async function getAllRidersWithStatus(): Promise<GetAllRidersResult> {
+  if (!isSupabaseConfigured()) {
+    return {
+      riders: [],
+      error: {
+        message: "Supabase connection is not configured or using placeholder credentials in .env.local.",
+        hint: "Please configure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY with your live Supabase project credentials in .env.local.",
+      },
+      isConfigured: false,
+    }
+  }
+
   try {
     const db = createServiceClient()
     const { data, error } = await db
@@ -79,11 +101,16 @@ export async function getAllRiders(): Promise<AdminRiderItem[]> {
       .order("created_at", { ascending: false })
 
     if (error || !data) {
-      console.error("[getAllRiders] Supabase error:", error)
-      return []
+      const formatted = formatSupabaseError(error)
+      console.error("[getAllRiders] Supabase error:", formatted)
+      return {
+        riders: [],
+        error: formatted,
+        isConfigured: true,
+      }
     }
 
-    return data.map((r) => {
+    const riders = data.map((r) => {
       let status: RiderStatus = "Verified"
       if (!r.is_active) {
         status = "Inactive"
@@ -106,10 +133,26 @@ export async function getAllRiders(): Promise<AdminRiderItem[]> {
         createdAt: r.created_at,
       }
     })
+
+    return {
+      riders,
+      error: null,
+      isConfigured: true,
+    }
   } catch (err) {
-    console.error("[getAllRiders]", err)
-    return []
+    const formatted = formatSupabaseError(err)
+    console.error("[getAllRiders] Exception:", formatted)
+    return {
+      riders: [],
+      error: formatted,
+      isConfigured: true,
+    }
   }
+}
+
+export async function getAllRiders(): Promise<AdminRiderItem[]> {
+  const res = await getAllRidersWithStatus()
+  return res.riders
 }
 
 export async function updateRiderStatus(
@@ -338,23 +381,30 @@ export async function getAllCustomers(): Promise<AdminCustomerItem[]> {
 // ─── DASHBOARD REAL METRICS ──────────────────────────────────────────────────
 
 export async function getAdminDashboardStats(): Promise<AdminDashboardMetrics> {
-  const db = createServiceClient()
-
   try {
-    // 1. Clerk Count or Distinct Users
     let registeredUsersCount = 0
     try {
       const clerk = await clerkClient()
       const totalClerk = await clerk.users.getCount()
       registeredUsersCount = typeof totalClerk === "number" ? totalClerk : 0
     } catch {
-      // Fallback: estimate from riders + providers + bookings distinct customers
-      const [{ count: ridersCount }, { count: providersCount }] = await Promise.all([
-        db.from("riders").select("*", { count: "exact", head: true }),
-        db.from("providers").select("*", { count: "exact", head: true }),
-      ])
-      registeredUsersCount = (ridersCount ?? 0) + (providersCount ?? 0)
+      registeredUsersCount = 0
     }
+
+    if (!isSupabaseConfigured()) {
+      return {
+        registeredUsers: registeredUsersCount,
+        activeRiders: 0,
+        activeProviders: 0,
+        pendingVerifications: 0,
+        activeLiveTrips: 0,
+        completedBookings: 0,
+        grossVolume: 0,
+        recentBookings: [],
+      }
+    }
+
+    const db = createServiceClient()
 
     // 2. Active Riders (verified AND active)
     const { count: activeRidersCount } = await db

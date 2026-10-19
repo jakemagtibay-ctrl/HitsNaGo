@@ -16,6 +16,7 @@ import {
   RefreshIcon,
   CheckmarkBadge01Icon,
   RadioIcon,
+  Message01Icon,
 } from "@hugeicons/core-free-icons"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -31,6 +32,8 @@ import { createBrowserClient } from "@/lib/supabase"
 import { resolveButuanCoordinates, parseBookingGeo } from "@/lib/maps/geocode"
 import { getNavigationUrl } from "@/lib/maps/routing"
 import { RiderIncidentDialog } from "@/components/rider/rider-incident-dialog"
+import { RiderTripNavigatorModal } from "@/components/rider/rider-trip-navigator-modal"
+import { getOrCreateBookingConversation } from "@/lib/actions/messaging"
 import { parseBookingCancellationInfo } from "@/lib/cancellations/metadata"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -64,6 +67,7 @@ export function RiderBookingsView({
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null)
   const [issueSubmittedMsg, setIssueSubmittedMsg] = React.useState<string | null>(null)
   const [selectedIncidentBooking, setSelectedIncidentBooking] = React.useState<Booking | null>(null)
+  const [selectedNavBooking, setSelectedNavBooking] = React.useState<Booking | null>(null)
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false)
 
   const [prevInitialBookings, setPrevInitialBookings] = React.useState(initialBookings)
@@ -583,31 +587,68 @@ export function RiderBookingsView({
                         )}
                       </div>
 
-                      {/* External Navigation Links */}
+                      {/* Live Road Route Navigation & Customer Messaging */}
                       {viewMode === "active" && (
-                        <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-primary/[0.04] border border-primary/15 text-[11px]">
-                          <span className="text-muted-foreground font-medium flex items-center gap-1">
-                            <HugeiconsIcon icon={Navigation01Icon} size={13} className="text-primary" />
-                            Navigate to {booking.status === "in_progress" ? "Dropoff" : "Pickup"}:
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={googleNavUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-semibold text-primary hover:underline hover:text-primary/80"
+                        <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-primary/[0.04] border border-primary/15 text-[11px]">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground font-medium flex items-center gap-1.5">
+                              <HugeiconsIcon icon={Navigation01Icon} size={14} className="text-primary" />
+                              <span>{booking.status === "in_progress" ? "Route to Dropoff" : "Route to Pickup"}</span>
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={googleNavUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-primary hover:underline hover:text-primary/80"
+                              >
+                                Google Maps ↗
+                              </a>
+                              <span className="text-muted-foreground">•</span>
+                              <a
+                                href={wazeNavUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-primary hover:underline hover:text-primary/80"
+                              >
+                                Waze ↗
+                              </a>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-1.5 border-t border-primary/10">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSelectedNavBooking(booking)}
+                              className="flex-1 h-7 text-xs font-semibold gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
                             >
-                              Google Maps ↗
-                            </a>
-                            <span className="text-muted-foreground">•</span>
-                            <a
-                              href={wazeNavUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-semibold text-primary hover:underline hover:text-primary/80"
+                              <HugeiconsIcon icon={Navigation01Icon} size={13} />
+                              <span>Live Map & GPS Route</span>
+                            </Button>
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={async () => {
+                                try {
+                                  const res = await getOrCreateBookingConversation(booking.id)
+                                  if (res.conversationId) {
+                                    router.push(`/dashboard/rider/messages?conversationId=${res.conversationId}`)
+                                  } else {
+                                    router.push(`/dashboard/rider/messages?bookingId=${booking.id}`)
+                                  }
+                                } catch {
+                                  router.push(`/dashboard/rider/messages?bookingId=${booking.id}`)
+                                }
+                              }}
+                              className="h-7 text-xs font-semibold gap-1 text-muted-foreground hover:text-foreground"
                             >
-                              Waze ↗
-                            </a>
+                              <HugeiconsIcon icon={Message01Icon} size={13} className="text-primary" />
+                              <span>Message Customer</span>
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -765,6 +806,26 @@ export function RiderBookingsView({
             setIssueSubmittedMsg("Assignment update or emergency incident submitted to dispatch.")
             setTimeout(() => setIssueSubmittedMsg(null), 5000)
             router.refresh()
+          }}
+        />
+      )}
+
+      {/* Live Road Route & GPS Navigation Modal */}
+      {selectedNavBooking && (
+        <RiderTripNavigatorModal
+          booking={selectedNavBooking}
+          rider={rider}
+          isOpen={!!selectedNavBooking}
+          onClose={() => setSelectedNavBooking(null)}
+          onStatusUpdated={(newStatus) => {
+            setBookings((prev) =>
+              prev.map((b) => (b.id === selectedNavBooking.id ? { ...b, status: newStatus } : b))
+            )
+            if (newStatus === "completed" || newStatus === "cancelled") {
+              setSelectedNavBooking(null)
+            } else {
+              setSelectedNavBooking((prev) => (prev ? { ...prev, status: newStatus } : null))
+            }
           }}
         />
       )}

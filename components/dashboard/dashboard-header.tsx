@@ -32,23 +32,25 @@ export function DashboardHeader({ role }: DashboardHeaderProps) {
         <RoleSwitcher currentRole={role} />
 
         {/* Notifications */}
-        <NotificationMenu />
+        <NotificationMenu role={role} />
 
         {/* Theme Toggle */}
         <ThemeToggle />
 
-        {/* Clerk User Profile */}
-        <div className="flex items-center pl-1 sm:pl-2 border-l border-border/60">
-          <UserButton
-            appearance={{
-              elements: {
-                userButtonAvatarBox: "size-8 sm:size-9 border border-border ring-offset-background",
-                userButtonPopoverCard: "border border-border bg-card text-card-foreground shadow-xl rounded-2xl",
-                userButtonPopoverFooter: "border-t border-border",
-              },
-            }}
-          />
-        </div>
+        {/* User profile is pinned to bottom-left sidebar for admin */}
+        {role !== "admin" && (
+          <div className="flex items-center pl-1 sm:pl-2 border-l border-border/60">
+            <UserButton
+              appearance={{
+                elements: {
+                  userButtonAvatarBox: "size-8 sm:size-9 border border-border ring-offset-background",
+                  userButtonPopoverCard: "border border-border bg-card text-card-foreground shadow-xl rounded-2xl",
+                  userButtonPopoverFooter: "border-t border-border",
+                },
+              }}
+            />
+          </div>
+        )}
       </div>
     </header>
   )

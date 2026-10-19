@@ -8,7 +8,9 @@ import {
   RefreshIcon,
   Alert01Icon,
   Clock01Icon,
+  Message01Icon,
 } from "@hugeicons/core-free-icons"
+import { useRouter } from "next/navigation"
 import { AdminFilterBar } from "@/components/admin/admin-filter-bar"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { Card } from "@/components/ui/card"
@@ -17,6 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import type { Booking, Rider } from "@/lib/actions/bookings"
 import { assignRider, getAllBookings, getAvailableRiders } from "@/lib/actions/bookings"
 import { getBookingIncidents } from "@/lib/actions/cancellations"
+import { getOrCreateBookingConversation } from "@/lib/actions/messaging"
 import {
   parseBookingCancellationInfo,
   type BookingIncident,
@@ -26,12 +29,15 @@ import { AdminIncidentResolutionModal } from "@/components/admin/admin-incident-
 interface AdminBookingsTableProps {
   initialBookings: Booking[]
   initialIncidents?: BookingIncident[]
+  dbNotice?: string | null
 }
 
 export function AdminBookingsTable({
   initialBookings,
   initialIncidents = [],
+  dbNotice = null,
 }: AdminBookingsTableProps) {
+  const router = useRouter()
   const [bookings, setBookings] = React.useState<Booking[]>(initialBookings)
   const [incidents, setIncidents] = React.useState<BookingIncident[]>(initialIncidents)
   const [searchQuery, setSearchQuery] = React.useState<string>("")
@@ -219,6 +225,25 @@ export function AdminBookingsTable({
 
   return (
     <>
+      {/* Database Connection / Configuration Notice */}
+      {dbNotice && (
+        <Card className="border-amber-500/40 bg-amber-500/10 p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="size-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+              <HugeiconsIcon icon={Alert01Icon} size={20} />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-heading text-sm font-bold text-amber-900 dark:text-amber-200">
+                Database Notice
+              </span>
+              <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-0.5">
+                {dbNotice}
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Urgent Dispatch & Emergencies Banner */}
       {activeIncidents.length > 0 && (
         <Card className="border-destructive/40 bg-destructive/5 p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -455,6 +480,29 @@ export function AdminBookingsTable({
                               {b.rider ? "Reassign" : "Assign Rider"}
                             </Button>
                           )}
+
+                          {/* Message / Chat Action */}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-[11px] px-2 font-semibold gap-1 text-muted-foreground hover:text-foreground"
+                            onClick={async () => {
+                              try {
+                                const res = await getOrCreateBookingConversation(b.id)
+                                if (res.conversationId) {
+                                  router.push(`/dashboard/admin/messages?conversationId=${res.conversationId}`)
+                                } else {
+                                  router.push(`/dashboard/admin/messages?bookingId=${b.id}`)
+                                }
+                              } catch {
+                                router.push(`/dashboard/admin/messages?bookingId=${b.id}`)
+                              }
+                            }}
+                          >
+                            <HugeiconsIcon icon={Message01Icon} size={12} className="text-primary" />
+                            <span>Chat</span>
+                          </Button>
                         </div>
                       </td>
                     </tr>

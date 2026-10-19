@@ -2,7 +2,9 @@
 
 import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
+import { useUser, useClerk } from "@clerk/nextjs"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Navigation01Icon,
@@ -15,7 +17,12 @@ import {
   Car01Icon,
   UserGroupIcon,
   Home01Icon,
+  Message01Icon,
+  Logout01Icon,
+  ReloadIcon,
+  BellIcon,
 } from "@hugeicons/core-free-icons"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { UserRole } from "@/lib/auth/roles"
@@ -41,10 +48,36 @@ interface NavSection {
 
 export function DashboardSidebar({ role, className, onNavigate }: DashboardSidebarProps) {
   const pathname = usePathname()
+  const { user } = useUser()
+  const { signOut } = useClerk()
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false)
   const [appStatus, setAppStatus] = React.useState<{ hasAppliedRider: boolean; hasAppliedProvider: boolean }>({
     hasAppliedRider: true,
     hasAppliedProvider: true,
   })
+
+  const userInitials =
+    user?.firstName && user?.lastName
+      ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+      : user?.firstName
+      ? user.firstName.slice(0, 2).toUpperCase()
+      : role === "admin"
+      ? "AD"
+      : "HN"
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return
+    setIsLoggingOut(true)
+    try {
+      if (onNavigate) {
+        onNavigate()
+      }
+      await signOut({ redirectUrl: "/" })
+    } catch (err) {
+      console.error("[DashboardSidebar] Sign out error:", err)
+      setIsLoggingOut(false)
+    }
+  }
 
   React.useEffect(() => {
     if (role === "customer") {
@@ -67,11 +100,14 @@ export function DashboardSidebar({ role, className, onNavigate }: DashboardSideb
             items: [
               { label: "Dashboard", href: "/dashboard/admin", icon: DashboardSquare01Icon },
               { label: "Bookings", href: "/dashboard/admin/bookings", icon: Calendar01Icon },
+              { label: "Messages / Inbox", href: "/dashboard/admin/messages", icon: Message01Icon },
               { label: "Riders", href: "/dashboard/admin/riders", icon: Motorbike01Icon },
               { label: "Rental Providers", href: "/dashboard/admin/providers", icon: Key01Icon },
               { label: "Customers", href: "/dashboard/admin/customers", icon: UserGroupIcon },
               { label: "Verification", href: "/dashboard/admin/verification", icon: ShieldCheckIcon },
-              { label: "Rentals / Vehicles", href: "/dashboard/admin/vehicles", icon: Car01Icon },
+              { label: "Vehicle Rentals", href: "/dashboard/admin/rentals", icon: Key01Icon },
+              { label: "Fleet & Vehicles", href: "/dashboard/admin/vehicles", icon: Car01Icon },
+              { label: "Notifications", href: "/dashboard/admin/notifications", icon: BellIcon },
             ],
           },
         ]
@@ -80,6 +116,7 @@ export function DashboardSidebar({ role, className, onNavigate }: DashboardSideb
           {
             items: [
               { label: "My Rides", href: "/dashboard/rider", icon: Motorbike01Icon },
+              { label: "Messages / Inbox", href: "/dashboard/rider/messages", icon: Message01Icon },
               { label: "History", href: "/dashboard/rider/history", icon: Calendar01Icon },
             ],
           },
@@ -90,6 +127,7 @@ export function DashboardSidebar({ role, className, onNavigate }: DashboardSideb
             items: [
               { label: "My Listings", href: "/dashboard/provider", icon: Key01Icon },
               { label: "Requests", href: "/dashboard/provider", icon: Calendar01Icon },
+              { label: "Messages / Inbox", href: "/dashboard/provider/messages", icon: Message01Icon },
             ],
           },
         ]
@@ -108,6 +146,7 @@ export function DashboardSidebar({ role, className, onNavigate }: DashboardSideb
             items: [
               { label: "Overview", href: "/dashboard/customer", icon: DashboardSquare01Icon },
               { label: "My Bookings", href: "/dashboard/customer/bookings", icon: Calendar01Icon },
+              { label: "Messages / Inbox", href: "/dashboard/customer/messages", icon: Message01Icon },
             ],
           },
           {
@@ -136,10 +175,11 @@ export function DashboardSidebar({ role, className, onNavigate }: DashboardSideb
     customer: { title: "Customer Portal", tag: "Customer" },
     rider: { title: "Rider Console", tag: "Rider" },
     provider: { title: "Rental Manager", tag: "Provider" },
-    admin: { title: "Operations Hub", tag: "Admin" },
+    admin: { title: "Operations Hub", tag: "Administrator" },
   }
 
   const sections = getNavSections(role)
+  const roleDisplay = roleLabelMap[role].tag
 
   return (
     <aside
@@ -225,18 +265,62 @@ export function DashboardSidebar({ role, className, onNavigate }: DashboardSideb
         </div>
       </div>
 
-      {/* Bottom role indicator badge */}
-      <div className="p-4 border-t border-sidebar-border/60 shrink-0">
-        <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-muted-foreground">Active Role</span>
-            <Badge variant="outline" className="border-primary/30 text-primary text-[10px] font-bold uppercase">
-              {role}
-            </Badge>
+      {/* Account panel pinned to sidebar bottom - displays user's actual name, role, and real Logout action */}
+      <div className="p-3 border-t border-sidebar-border/60 shrink-0 bg-sidebar/95 backdrop-blur-xs">
+        <div className="flex items-center gap-2.5 rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-2.5 shadow-2xs">
+          {/* Avatar / Initials */}
+          <div className="relative shrink-0">
+            {user?.imageUrl ? (
+              <Image
+                src={user.imageUrl}
+                alt={user.fullName || "User profile"}
+                width={36}
+                height={36}
+                unoptimized
+                className="size-9 rounded-xl object-cover border border-border/80 shadow-2xs"
+              />
+            ) : (
+              <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary font-bold text-xs border border-primary/20 shadow-2xs">
+                {userInitials}
+              </div>
+            )}
           </div>
-          <p className="mt-1 text-[11px] text-muted-foreground leading-tight">
-            Butuan City, Caraga Region Hub
-          </p>
+
+          {/* Name & Role */}
+          <div className="flex flex-col min-w-0 flex-1">
+            <span className="text-xs font-bold text-sidebar-foreground truncate leading-tight">
+              {user?.fullName || user?.firstName || (role === "admin" ? "Administrator" : "Active Account")}
+            </span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <Badge
+                variant="outline"
+                className="h-4 px-1.5 text-[9px] font-bold uppercase tracking-wider border-primary/30 text-primary bg-primary/5"
+              >
+                {roleDisplay}
+              </Badge>
+              <span className="text-[10px] text-muted-foreground truncate hidden sm:inline">
+                Butuan City
+              </span>
+            </div>
+          </div>
+
+          {/* Dedicated Real Logout Button */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="size-8 p-0 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 transition-colors"
+            title="Sign out of HitsNaGo"
+            aria-label="Sign out of account"
+          >
+            {isLoggingOut ? (
+              <HugeiconsIcon icon={ReloadIcon} size={15} className="animate-spin text-muted-foreground" />
+            ) : (
+              <HugeiconsIcon icon={Logout01Icon} size={16} />
+            )}
+          </Button>
         </div>
       </div>
     </aside>

@@ -2,7 +2,7 @@ import * as React from "react"
 import { requireRole } from "@/lib/auth/roles"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { AdminRidersTable } from "@/components/admin/admin-riders-table"
-import { getAllRiders } from "@/lib/actions/admin"
+import { getAllRidersWithStatus } from "@/lib/actions/admin"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function AdminRidersPage() {
   await requireRole("admin")
 
-  const riders = await getAllRiders()
+  const ridersResult = await getAllRidersWithStatus()
 
   return (
     <div className="flex flex-col gap-6 pb-16">
@@ -22,7 +22,10 @@ export default async function AdminRidersPage() {
         description="All registered motorcycle taxi and delivery riders operating in Butuan City."
       />
 
-      <AdminRidersTable initialRiders={riders} />
+      <AdminRidersTable
+        initialRiders={ridersResult.riders}
+        dbNotice={ridersResult.error ? ridersResult.error.message : null}
+      />
     </div>
   )
 }

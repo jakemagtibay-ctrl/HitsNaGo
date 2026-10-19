@@ -51,7 +51,7 @@ export async function cancelBookingByCustomer(
     // 1. Fetch booking to check ownership & eligibility
     const { data: booking, error: fetchError } = await db
       .from("bookings")
-      .select("*, rider:rider_id(*)")
+      .select("*, rider:riders!rider_id(*)")
       .eq("id", input.bookingId)
       .single()
 

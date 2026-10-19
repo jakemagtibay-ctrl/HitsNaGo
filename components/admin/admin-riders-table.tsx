@@ -10,6 +10,7 @@ import {
   Delete02Icon,
   RefreshIcon,
   Motorbike01Icon,
+  Alert01Icon,
 } from "@hugeicons/core-free-icons"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -23,9 +24,10 @@ import {
 
 interface AdminRidersTableProps {
   initialRiders: AdminRiderItem[]
+  dbNotice?: string | null
 }
 
-export function AdminRidersTable({ initialRiders }: AdminRidersTableProps) {
+export function AdminRidersTable({ initialRiders, dbNotice = null }: AdminRidersTableProps) {
   const [riders, setRiders] = React.useState<AdminRiderItem[]>(initialRiders)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState<"All" | RiderStatus>("All")
@@ -133,6 +135,25 @@ export function AdminRidersTable({ initialRiders }: AdminRidersTableProps) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Database Connection / Configuration Notice */}
+      {dbNotice && (
+        <Card className="border-amber-500/40 bg-amber-500/10 p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="size-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+              <HugeiconsIcon icon={Alert01Icon} size={20} />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-heading text-sm font-bold text-amber-900 dark:text-amber-200">
+                Database Notice
+              </span>
+              <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-0.5">
+                {dbNotice}
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Search box & Status filter */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
