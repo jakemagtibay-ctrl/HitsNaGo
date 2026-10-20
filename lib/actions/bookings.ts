@@ -298,6 +298,7 @@ export async function createRentalBooking(
 
     // Concurrency-safe atomic unit allocation check
     const { allocateUnitForBooking } = await import("@/lib/actions/rentals")
+    const { normalizeRentalUnitId, VALID_UUID_REGEX } = await import("@/lib/rentals/inventory")
     const allocation = await allocateUnitForBooking(
       listingId,
       input.startDate,
@@ -312,6 +313,19 @@ export async function createRentalBooking(
     }
 
     const assignedUnit = allocation.unit
+    let resolvedUnitId = normalizeRentalUnitId(assignedUnit.id) || assignedUnit.id
+
+    // Fallback: If not a valid UUID string, resolve from rental_units in database
+    if (!VALID_UUID_REGEX.test(resolvedUnitId)) {
+      const { data: dbUnits } = await db
+        .from("rental_units")
+        .select("id")
+        .eq("listing_id", listingId)
+        .limit(1)
+      if (dbUnits && dbUnits.length > 0 && dbUnits[0]?.id) {
+        resolvedUnitId = dbUnits[0].id
+      }
+    }
 
     const rentalNotes = [
       `Rental Item: ${input.itemTitle}`,
@@ -341,7 +355,7 @@ export async function createRentalBooking(
       notes: rentalNotes,
       status: "pending",
       rider_id: null,
-      unit_id: assignedUnit.id,
+      unit_id: resolvedUnitId,
       listing_id: listingId,
       rental_start_date: start.toISOString(),
       rental_end_date: end.toISOString(),

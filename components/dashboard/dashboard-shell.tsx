@@ -2,6 +2,7 @@ import * as React from "react"
 import Link from "next/link"
 import { DashboardSidebar } from "./dashboard-sidebar"
 import { DashboardHeader } from "./dashboard-header"
+import { NotificationProvider } from "@/components/notifications/notification-provider"
 import type { UserRole } from "@/lib/auth/roles"
 
 interface DashboardShellProps {
@@ -11,11 +12,12 @@ interface DashboardShellProps {
 
 export function DashboardShell({ children, role }: DashboardShellProps) {
   return (
-    <div className="flex min-h-svh w-full bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
-      {/* Desktop Sidebar */}
-      <div className="hidden md:flex shrink-0">
-        <DashboardSidebar role={role} />
-      </div>
+    <NotificationProvider>
+      <div className="flex min-h-svh w-full bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
+        {/* Desktop Sidebar */}
+        <div className="hidden md:flex shrink-0">
+          <DashboardSidebar role={role} />
+        </div>
 
       {/* Main View Area */}
       <div className="flex flex-1 flex-col min-w-0">
@@ -45,5 +47,6 @@ export function DashboardShell({ children, role }: DashboardShellProps) {
         </footer>
       </div>
     </div>
+    </NotificationProvider>
   )
 }

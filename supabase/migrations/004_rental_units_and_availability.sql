@@ -153,23 +153,23 @@ $$;
 -- --------------------------------------------------------
 -- 5. SEED INITIAL INVENTORY UNITS (FOR BUTUAN CITY FLEET)
 -- --------------------------------------------------------
-INSERT INTO public.rental_units (listing_id, provider_id, unit_identifier, status)
+INSERT INTO public.rental_units (id, listing_id, provider_id, unit_identifier, status)
 VALUES
   -- Toyota Innova (3 units)
-  ('rent_btn_01', 'user_prov_btn_01', 'Unit 1 (Plate ABC-1011)', 'available'),
-  ('rent_btn_01', 'user_prov_btn_01', 'Unit 2 (Plate ABC-1012)', 'available'),
-  ('rent_btn_01', 'user_prov_btn_01', 'Unit 3 (Plate ABC-1013)', 'available'),
+  ('a1000000-0001-4000-8000-000000000001', 'rent_btn_01', 'user_prov_btn_01', 'Unit 1 (Plate ABC-1011)', 'available'),
+  ('a1000000-0001-4000-8000-000000000002', 'rent_btn_01', 'user_prov_btn_01', 'Unit 2 (Plate ABC-1012)', 'available'),
+  ('a1000000-0001-4000-8000-000000000003', 'rent_btn_01', 'user_prov_btn_01', 'Unit 3 (Plate ABC-1013)', 'available'),
   -- Toyota HiAce (2 units)
-  ('rent_btn_02', 'user_prov_btn_01', 'Unit 1 (Plate VAN-2021)', 'available'),
-  ('rent_btn_02', 'user_prov_btn_01', 'Unit 2 (Plate VAN-2022)', 'available'),
+  ('a1000000-0002-4000-8000-000000000001', 'rent_btn_02', 'user_prov_btn_01', 'Unit 1 (Plate VAN-2021)', 'available'),
+  ('a1000000-0002-4000-8000-000000000002', 'rent_btn_02', 'user_prov_btn_01', 'Unit 2 (Plate VAN-2022)', 'available'),
   -- Honda Click 125i (3 units)
-  ('rent_btn_03', 'user_prov_btn_02', 'Unit 1 (Plate MTO-3031)', 'available'),
-  ('rent_btn_03', 'user_prov_btn_02', 'Unit 2 (Plate MTO-3032)', 'available'),
-  ('rent_btn_03', 'user_prov_btn_02', 'Unit 3 (Plate MTO-3033)', 'available'),
+  ('a1000000-0003-4000-8000-000000000001', 'rent_btn_03', 'user_prov_btn_02', 'Unit 1 (Plate MTO-3031)', 'available'),
+  ('a1000000-0003-4000-8000-000000000002', 'rent_btn_03', 'user_prov_btn_02', 'Unit 2 (Plate MTO-3032)', 'available'),
+  ('a1000000-0003-4000-8000-000000000003', 'rent_btn_03', 'user_prov_btn_02', 'Unit 3 (Plate MTO-3033)', 'available'),
   -- Yamaha NMAX (2 units)
-  ('rent_btn_04', 'user_prov_btn_02', 'Unit 1 (Plate NMX-4041)', 'available'),
-  ('rent_btn_04', 'user_prov_btn_02', 'Unit 2 (Plate NMX-4042)', 'available')
-ON CONFLICT DO NOTHING;
+  ('a1000000-0004-4000-8000-000000000001', 'rent_btn_04', 'user_prov_btn_02', 'Unit 1 (Plate NMX-4041)', 'available'),
+  ('a1000000-0004-4000-8000-000000000002', 'rent_btn_04', 'user_prov_btn_02', 'Unit 2 (Plate NMX-4042)', 'available')
+ON CONFLICT (id) DO NOTHING;
 
 -- --------------------------------------------------------
 -- 6. ROW LEVEL SECURITY

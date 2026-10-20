@@ -13,7 +13,7 @@ import {
   Navigation01Icon,
   Cancel01Icon,
   Alert01Icon,
-  Message01Icon,
+  Mail01Icon,
 } from "@hugeicons/core-free-icons"
 import { BookingStatusBadge } from "@/components/dashboard/status-badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -21,7 +21,6 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { CancelBookingDialog } from "@/components/booking/cancel-booking-dialog"
 import { EmergencyReportDialog } from "@/components/booking/emergency-report-dialog"
 import { CustomerTripTrackingModal } from "@/components/customer/customer-trip-tracking-modal"
-import { getOrCreateBookingConversation, createSupportConversation } from "@/lib/actions/messaging"
 import { parseBookingCancellationInfo } from "@/lib/cancellations/metadata"
 import { cn } from "@/lib/utils"
 import type { Booking } from "@/lib/actions/bookings"
@@ -212,58 +211,19 @@ export function CustomerBookingsView({ initialBookings }: CustomerBookingsViewPr
                         </Button>
                       )}
 
-                      {/* Message Rider button - only when rider assigned and status is active (assigned, accepted, in_progress) */}
-                      {Boolean(booking.rider_id || booking.rider) &&
-                        ["assigned", "accepted", "in_progress"].includes(booking.status) && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                const res = await getOrCreateBookingConversation(booking.id)
-                                if (res.conversationId) {
-                                  router.push(`/dashboard/customer/messages?conversationId=${res.conversationId}`)
-                                } else {
-                                  router.push(`/dashboard/customer/messages?bookingId=${booking.id}`)
-                                }
-                              } catch {
-                                router.push(`/dashboard/customer/messages?bookingId=${booking.id}`)
-                              }
-                            }}
-                            className="h-8 text-xs font-semibold gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
-                          >
-                            <HugeiconsIcon icon={Message01Icon} size={13} className="text-primary" />
-                            <span>Message Rider</span>
-                          </Button>
-                        )}
 
-                      {/* Message Support button - available for all non-cancelled bookings */}
-                      {booking.status !== "cancelled" && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={async () => {
-                            try {
-                              const res = await createSupportConversation(
-                                `Inquiry for ${booking.reference}`,
-                                booking.id
-                              )
-                              if (res.conversationId) {
-                                router.push(`/dashboard/customer/messages?conversationId=${res.conversationId}`)
-                              } else {
-                                router.push("/dashboard/customer/messages")
-                              }
-                            } catch {
-                              router.push("/dashboard/customer/messages")
-                            }
-                          }}
-                          className="h-8 text-xs font-semibold gap-1.5 text-muted-foreground hover:text-foreground"
+
+
+                      {/* Direct Message Link */}
+                      {(booking.rider || booking.service_type === "rental" || booking.status !== "cancelled") && (
+                        <Link
+                          href={`/dashboard/customer/inbox?bookingId=${booking.id}`}
+                          className="inline-flex items-center justify-center rounded-lg border border-border bg-card px-2.5 h-8 text-xs font-semibold text-foreground hover:bg-muted transition-colors gap-1.5"
                         >
-                          <HugeiconsIcon icon={Message01Icon} size={13} className="text-muted-foreground" />
-                          <span>Message Support</span>
-                        </Button>
+                          <HugeiconsIcon icon={Mail01Icon} size={13} />
+                          <span>Message {booking.service_type === "rental" ? "Provider" : "Rider"}</span>
+                        </Link>
+
                       )}
 
                       {/* Emergency Report Button for active trip */}

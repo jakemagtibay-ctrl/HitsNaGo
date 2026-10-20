@@ -9,8 +9,9 @@ import {
   Car01Icon,
   ShieldCheckIcon,
   AlertCircleIcon,
+  Mail01Icon,
 } from "@hugeicons/core-free-icons"
-import { mockNotifications } from "@/lib/mock-data/notifications"
+import { useNotifications } from "@/hooks/use-notifications"
 import { cn } from "@/lib/utils"
 import type { Notification } from "@/types/notification"
 
@@ -20,10 +21,10 @@ interface NotificationMenuProps {
 
 export function NotificationMenu({ role }: NotificationMenuProps = {}) {
   const [isOpen, setIsOpen] = React.useState(false)
-  const [notifications, setNotifications] = React.useState<Notification[]>(mockNotifications)
+  const { notifications, counts, markNotificationAsRead, markAllNotificationsAsRead } = useNotifications()
   const menuRef = React.useRef<HTMLDivElement>(null)
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length
+  const unreadCount = counts.notifications
 
   // Close on outside click
   React.useEffect(() => {
@@ -41,26 +42,37 @@ export function NotificationMenu({ role }: NotificationMenuProps = {}) {
     }
   }, [isOpen])
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })))
-  }
-
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    )
-  }
-
   const getIconForType = (type: Notification["type"]) => {
     switch (type) {
       case "booking":
         return Car01Icon
       case "verification":
         return ShieldCheckIcon
+      case "message":
+        return Mail01Icon
       case "system":
         return CheckmarkCircle01Icon
+      case "dispute":
+      case "emergency":
+        return AlertCircleIcon
       default:
         return AlertCircleIcon
+    }
+  }
+
+  const formatRelativeTime = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr)
+      const now = new Date()
+      const diffMs = now.getTime() - date.getTime()
+      const diffMins = Math.floor(diffMs / 60000)
+      if (diffMins < 1) return "Just now"
+      if (diffMins < 60) return `${diffMins}m ago`
+      const diffHours = Math.floor(diffMins / 60)
+      if (diffHours < 24) return `${diffHours}h ago`
+      return date.toLocaleDateString([], { month: "short", day: "numeric" })
+    } catch {
+      return ""
     }
   }
 
@@ -78,8 +90,8 @@ export function NotificationMenu({ role }: NotificationMenuProps = {}) {
       >
         <HugeiconsIcon icon={Notification01Icon} size={18} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow-xs animate-in zoom-in-50">
-            {unreadCount}
+          <span className="absolute -top-1 -right-1 flex min-w-4 h-4 px-1 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground shadow-xs animate-in zoom-in-50">
+            {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
@@ -92,7 +104,7 @@ export function NotificationMenu({ role }: NotificationMenuProps = {}) {
               <h4 className="font-heading text-sm font-semibold text-foreground">Notifications</h4>
               {unreadCount > 0 && (
                 <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                  {unreadCount} new
+                  {unreadCount > 99 ? "99+" : unreadCount} new
                 </span>
               )}
             </div>
@@ -100,8 +112,8 @@ export function NotificationMenu({ role }: NotificationMenuProps = {}) {
             {unreadCount > 0 && (
               <button
                 type="button"
-                onClick={markAllAsRead}
-                className="text-xs font-medium text-primary hover:underline"
+                onClick={markAllNotificationsAsRead}
+                className="text-xs font-medium text-primary hover:underline transition-colors"
               >
                 Mark all read
               </button>
@@ -117,15 +129,16 @@ export function NotificationMenu({ role }: NotificationMenuProps = {}) {
             ) : (
               notifications.map((notif) => {
                 const Icon = getIconForType(notif.type)
-                const formattedTime = new Date(notif.createdAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
+                const timeText = formatRelativeTime(notif.createdAt)
 
                 return (
                   <div
                     key={notif.id}
-                    onClick={() => markAsRead(notif.id)}
+                    onClick={() => {
+                      if (!notif.isRead) {
+                        markNotificationAsRead(notif.id)
+                      }
+                    }}
                     className={cn(
                       "flex items-start gap-3 p-3.5 transition-colors hover:bg-muted/50 cursor-pointer",
                       !notif.isRead && "bg-primary/5"
@@ -148,7 +161,7 @@ export function NotificationMenu({ role }: NotificationMenuProps = {}) {
                           {notif.title}
                         </span>
                         <span className="text-[10px] text-muted-foreground shrink-0">
-                          {formattedTime}
+                          {timeText}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 leading-snug">
@@ -158,7 +171,10 @@ export function NotificationMenu({ role }: NotificationMenuProps = {}) {
                       {notif.data?.actionUrl && (
                         <Link
                           href={notif.data.actionUrl}
-                          onClick={() => setIsOpen(false)}
+                          onClick={() => {
+                            if (!notif.isRead) markNotificationAsRead(notif.id)
+                            setIsOpen(false)
+                          }}
                           className="mt-1.5 inline-block text-[11px] font-semibold text-primary hover:underline"
                         >
                           View Details →

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   CheckmarkCircle01Icon,
@@ -8,6 +9,7 @@ import {
   Calendar01Icon,
   PinLocation01Icon,
   Alert01Icon,
+  Mail01Icon,
 } from "@hugeicons/core-free-icons"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -322,6 +324,14 @@ export function ProviderPortalView({
                       </span>
 
                       <div className="flex items-center gap-2">
+                        <Link
+                          href={`/dashboard/provider/inbox?bookingId=${booking.id}`}
+                          className="inline-flex items-center justify-center rounded-lg border border-border bg-card px-2.5 h-7 text-xs font-semibold text-foreground hover:bg-muted transition-colors gap-1"
+                        >
+                          <HugeiconsIcon icon={Mail01Icon} size={12} />
+                          <span>Chat</span>
+                        </Link>
+
                         {isEligibleToCancel && (
                           <Button
                             size="sm"

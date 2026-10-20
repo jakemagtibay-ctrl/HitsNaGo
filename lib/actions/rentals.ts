@@ -11,116 +11,28 @@ import type {
 } from "@/types/rental"
 import { getProviderRecord } from "@/lib/actions/bookings"
 
-// ─── INITIAL BASELINE INVENTORY UNITS ─────────────────────────────────────────
-// Baseline physical units for Butuan City fleet listings
-const DEFAULT_INVENTORY_UNITS: RentalUnit[] = [
-  // Toyota Innova (3 units)
-  {
-    id: "unit_innova_01",
-    listingId: "rent_btn_01",
-    providerId: "user_prov_btn_01",
-    unitIdentifier: "Unit 1 (Plate ABC-1011)",
-    status: "available",
-    createdAt: "2026-01-10T08:00:00Z",
-    updatedAt: "2026-01-10T08:00:00Z",
-  },
-  {
-    id: "unit_innova_02",
-    listingId: "rent_btn_01",
-    providerId: "user_prov_btn_01",
-    unitIdentifier: "Unit 2 (Plate ABC-1012)",
-    status: "available",
-    createdAt: "2026-01-10T08:00:00Z",
-    updatedAt: "2026-01-10T08:00:00Z",
-  },
-  {
-    id: "unit_innova_03",
-    listingId: "rent_btn_01",
-    providerId: "user_prov_btn_01",
-    unitIdentifier: "Unit 3 (Plate ABC-1013)",
-    status: "available",
-    createdAt: "2026-01-10T08:00:00Z",
-    updatedAt: "2026-01-10T08:00:00Z",
-  },
+import {
+  DEFAULT_INVENTORY_UNITS,
+  LEGACY_UNIT_ID_MAP,
+  normalizeRentalUnitId,
+} from "@/lib/rentals/inventory"
 
-  // Toyota HiAce Grandia (2 units)
-  {
-    id: "unit_hiace_01",
-    listingId: "rent_btn_02",
-    providerId: "user_prov_btn_01",
-    unitIdentifier: "Unit 1 (Plate VAN-2021)",
-    status: "available",
-    createdAt: "2026-01-15T10:00:00Z",
-    updatedAt: "2026-01-15T10:00:00Z",
-  },
-  {
-    id: "unit_hiace_02",
-    listingId: "rent_btn_02",
-    providerId: "user_prov_btn_01",
-    unitIdentifier: "Unit 2 (Plate VAN-2022)",
-    status: "available",
-    createdAt: "2026-01-15T10:00:00Z",
-    updatedAt: "2026-01-15T10:00:00Z",
-  },
-
-  // Honda Click 125i (3 units)
-  {
-    id: "unit_click_01",
-    listingId: "rent_btn_03",
-    providerId: "user_prov_btn_02",
-    unitIdentifier: "Unit 1 (Plate MTO-3031)",
-    status: "available",
-    createdAt: "2026-02-01T14:00:00Z",
-    updatedAt: "2026-02-01T14:00:00Z",
-  },
-  {
-    id: "unit_click_02",
-    listingId: "rent_btn_03",
-    providerId: "user_prov_btn_02",
-    unitIdentifier: "Unit 2 (Plate MTO-3032)",
-    status: "available",
-    createdAt: "2026-02-01T14:00:00Z",
-    updatedAt: "2026-02-01T14:00:00Z",
-  },
-  {
-    id: "unit_click_03",
-    listingId: "rent_btn_03",
-    providerId: "user_prov_btn_02",
-    unitIdentifier: "Unit 3 (Plate MTO-3033)",
-    status: "available",
-    createdAt: "2026-02-01T14:00:00Z",
-    updatedAt: "2026-02-01T14:00:00Z",
-  },
-
-  // Yamaha NMAX 155 (2 units)
-  {
-    id: "unit_nmax_01",
-    listingId: "rent_btn_04",
-    providerId: "user_prov_btn_02",
-    unitIdentifier: "Unit 1 (Plate NMX-4041)",
-    status: "available",
-    createdAt: "2026-02-05T12:00:00Z",
-    updatedAt: "2026-02-05T12:00:00Z",
-  },
-  {
-    id: "unit_nmax_02",
-    listingId: "rent_btn_04",
-    providerId: "user_prov_btn_02",
-    unitIdentifier: "Unit 2 (Plate NMX-4042)",
-    status: "available",
-    createdAt: "2026-02-05T12:00:00Z",
-    updatedAt: "2026-02-05T12:00:00Z",
-  },
-]
-
-// In-memory runtime store for persistent state across requests when database table is bootstrapping
+// In-memory runtime store for persistent state across requests
 const memoryUnitStore = new Map<string, RentalUnit>()
 DEFAULT_INVENTORY_UNITS.forEach((u) => memoryUnitStore.set(u.id, { ...u }))
+// Also register legacy keys so in-memory operations by legacy ID resolve to the valid unit
+for (const [legacyKey, uuid] of Object.entries(LEGACY_UNIT_ID_MAP)) {
+  const target = memoryUnitStore.get(uuid)
+  if (target) {
+    memoryUnitStore.set(legacyKey, target)
+  }
+}
 
 import { doDateRangesOverlap } from "@/lib/rentals/availability"
 
 /**
- * Fetch all registered units for a given listing from Supabase or fallback store
+ * Fetch all registered units for a given listing from Supabase or fallback store.
+ * If the rental_units table in the database has not been seeded yet, auto-seeds baseline units.
  */
 export async function getUnitsForListing(listingId: string): Promise<RentalUnit[]> {
   try {
@@ -145,14 +57,47 @@ export async function getUnitsForListing(listingId: string): Promise<RentalUnit[
         updatedAt: d.updated_at,
       }))
     }
+
+    // Auto-seed: If database table has 0 units for this listing, seed baseline units into database
+    const baselineUnits = DEFAULT_INVENTORY_UNITS.filter((u) => u.listingId === listingId)
+    if (baselineUnits.length > 0) {
+      const toUpsert = baselineUnits.map((u) => ({
+        id: u.id,
+        listing_id: u.listingId,
+        provider_id: u.providerId,
+        unit_identifier: u.unitIdentifier,
+        status: u.status,
+      }))
+      const { data: upserted, error: upsertErr } = await db
+        .from("rental_units")
+        .upsert(toUpsert, { onConflict: "id" })
+        .select()
+
+      if (!upsertErr && upserted && upserted.length > 0) {
+        return upserted.map((d) => ({
+          id: d.id,
+          listingId: d.listing_id,
+          providerId: d.provider_id,
+          unitIdentifier: d.unit_identifier,
+          status: d.status as UnitStatus,
+          maintenanceStart: d.maintenance_start,
+          maintenanceEnd: d.maintenance_end,
+          maintenanceReason: d.maintenance_reason,
+          createdAt: d.created_at,
+          updatedAt: d.updated_at,
+        }))
+      }
+    }
   } catch (err) {
     console.warn("[getUnitsForListing] Database query notice, using synced store:", err)
   }
 
-  // Fallback to memoryUnitStore
+  // Fallback to memoryUnitStore with unique unit records
+  const seenIds = new Set<string>()
   const units: RentalUnit[] = []
   memoryUnitStore.forEach((u) => {
-    if (u.listingId === listingId) {
+    if (u.listingId === listingId && !seenIds.has(u.id)) {
+      seenIds.add(u.id)
       units.push({ ...u })
     }
   })
@@ -456,9 +401,10 @@ export async function updateUnitStatus(input: {
     const db = createServiceClient()
 
     // 1. Fetch unit
+    const targetUnitId = normalizeRentalUnitId(input.unitId) || input.unitId
     let unit: RentalUnit | undefined
     try {
-      const { data } = await db.from("rental_units").select("*").eq("id", input.unitId).single()
+      const { data } = await db.from("rental_units").select("*").eq("id", targetUnitId).single()
       if (data) {
         unit = {
           id: data.id,
@@ -476,7 +422,7 @@ export async function updateUnitStatus(input: {
     } catch {}
 
     if (!unit) {
-      unit = memoryUnitStore.get(input.unitId)
+      unit = memoryUnitStore.get(targetUnitId) || memoryUnitStore.get(input.unitId)
     }
 
     if (!unit) {

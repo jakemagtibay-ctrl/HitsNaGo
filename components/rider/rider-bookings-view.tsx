@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Motorbike01Icon,
@@ -17,6 +18,7 @@ import {
   CheckmarkBadge01Icon,
   RadioIcon,
   Message01Icon,
+  Mail01Icon,
 } from "@hugeicons/core-free-icons"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -556,9 +558,18 @@ export function RiderBookingsView({
                               </Badge>
                             )}
                           </div>
-                          <span className="text-[11px] text-muted-foreground block mt-0.5">
-                            Customer: {booking.customer_name}
-                          </span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[11px] text-muted-foreground">
+                              Customer: {booking.customer_name}
+                            </span>
+                            <Link
+                              href={`/dashboard/rider/inbox?bookingId=${booking.id}`}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                            >
+                              <HugeiconsIcon icon={Mail01Icon} size={12} />
+                              <span>Chat</span>
+                            </Link>
+                          </div>
                         </div>
                         {getStatusBadge(booking.status)}
                       </div>
@@ -632,17 +643,8 @@ export function RiderBookingsView({
                               type="button"
                               size="sm"
                               variant="ghost"
-                              onClick={async () => {
-                                try {
-                                  const res = await getOrCreateBookingConversation(booking.id)
-                                  if (res.conversationId) {
-                                    router.push(`/dashboard/rider/messages?conversationId=${res.conversationId}`)
-                                  } else {
-                                    router.push(`/dashboard/rider/messages?bookingId=${booking.id}`)
-                                  }
-                                } catch {
-                                  router.push(`/dashboard/rider/messages?bookingId=${booking.id}`)
-                                }
+                              onClick={() => {
+                                router.push(`/dashboard/rider/inbox?bookingId=${booking.id}`)
                               }}
                               className="h-7 text-xs font-semibold gap-1 text-muted-foreground hover:text-foreground"
                             >

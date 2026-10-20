@@ -13,6 +13,9 @@ import { AdminDetailSheet } from "@/components/admin/admin-detail-sheet"
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { getBookingIncidents, resolveBookingIncident } from "@/lib/actions/cancellations"
+import { useNotifications } from "@/hooks/use-notifications"
+
 export interface AdminDisputeRecord {
   id: string
   bookingId: string
@@ -34,10 +37,12 @@ export interface AdminDisputeRecord {
 
 export default function AdminDisputesPage() {
   const [disputes, setDisputes] = React.useState<AdminDisputeRecord[]>([])
+  const [isLoading, setIsLoading] = React.useState<boolean>(true)
   const [searchQuery, setSearchQuery] = React.useState<string>("")
   const [statusFilter, setStatusFilter] = React.useState<string>("all")
   const [selectedDispute, setSelectedDispute] = React.useState<AdminDisputeRecord | null>(null)
   const [adminResolutionNotes, setAdminResolutionNotes] = React.useState<string>("")
+  const { refresh } = useNotifications()
 
   const [dialogState, setDialogState] = React.useState<{
     isOpen: boolean
@@ -48,6 +53,51 @@ export default function AdminDisputesPage() {
     action: "resolve",
     dispute: null,
   })
+
+  const loadDisputes = React.useCallback(async () => {
+    try {
+      const incidents = await getBookingIncidents()
+      const records: AdminDisputeRecord[] = incidents.map((inc) => {
+        const booking = (inc.booking as any) || {}
+        let status: AdminDisputeRecord["status"] = "open"
+        if (inc.status === "investigating") {
+          status = "under_review"
+        } else if (inc.status === "resolved") {
+          status = "resolved"
+        } else if (inc.status === "closed") {
+          status = "closed"
+        }
+
+        return {
+          id: inc.id,
+          bookingId: booking.reference || inc.booking_id,
+          bookingReference: booking.reference || inc.booking_id,
+          customerName: booking.customer_name || inc.reporter_name || "Customer",
+          partyName: inc.reporter_name || "Assigned Partner",
+          partyRole: inc.reporter_role || "rider",
+          serviceType: booking.service_type || "ride",
+          issue: inc.reason || inc.category || inc.incident_type,
+          amount: Number(booking.estimated_fare) || 0,
+          status,
+          submittedDate: inc.created_at,
+          createdAt: inc.created_at,
+          description: inc.description || inc.reason,
+          adminNotes: inc.admin_notes || "",
+          evidencePlaceholder: `Telemetry record: Incident #${inc.id} (${inc.severity || "standard"} severity)`,
+          priority: inc.severity === "critical" ? "urgent" : inc.severity === "urgent" ? "high" : "medium",
+        }
+      })
+      setDisputes(records)
+    } catch (err) {
+      console.error("[AdminDisputesPage] Error loading disputes:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    void loadDisputes()
+  }, [loadDisputes])
 
   const filteredDisputes = React.useMemo(() => {
     return disputes.filter((d) => {
@@ -63,9 +113,10 @@ export default function AdminDisputesPage() {
     })
   }, [disputes, searchQuery, statusFilter])
 
-  const handleExecuteAction = () => {
+  const handleExecuteAction = async () => {
     if (!dialogState.dispute) return
     const targetId = dialogState.dispute.id
+    const targetBookingId = dialogState.dispute.bookingId
 
     const newStatus =
       dialogState.action === "resolve"
@@ -100,6 +151,19 @@ export default function AdminDisputesPage() {
     }
 
     setDialogState({ isOpen: false, action: "resolve", dispute: null })
+
+    try {
+      await resolveBookingIncident({
+        incidentId: targetId,
+        bookingId: targetBookingId,
+        resolutionNotes: adminResolutionNotes || "Action completed by admin.",
+        status: newStatus === "under_review" ? "investigating" : newStatus,
+      })
+      void refresh()
+    } catch (err) {
+      console.error("[AdminDisputesPage] Failed to persist dispute resolution:", err)
+      void loadDisputes()
+    }
   }
 
   return (
@@ -131,7 +195,16 @@ export default function AdminDisputesPage() {
       />
 
       <div className="grid grid-cols-1 gap-4">
-        {filteredDisputes.map((disp) => (
+        {isLoading ? (
+          <div className="rounded-2xl border border-border bg-card p-12 text-center text-xs text-muted-foreground">
+            Loading disputes and escalations from Butuan City...
+          </div>
+        ) : filteredDisputes.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border/80 bg-muted/20 p-12 text-center text-xs text-muted-foreground">
+            No active disputes matching current filters. All passenger, delivery, and rental trips are operating normally.
+          </div>
+        ) : (
+          filteredDisputes.map((disp) => (
           <Card key={disp.id} className="border-border/80 bg-card shadow-xs">
             <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-4">
@@ -190,7 +263,8 @@ export default function AdminDisputesPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
+        ))
+      )}
       </div>
 
       {/* Dispute Detail Sheet */}

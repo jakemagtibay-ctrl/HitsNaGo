@@ -17,16 +17,21 @@ import {
   Car01Icon,
   UserGroupIcon,
   Home01Icon,
-  Message01Icon,
   Logout01Icon,
   ReloadIcon,
-  BellIcon,
+  Mail01Icon,
+  Notification01Icon,
+  AlertCircleIcon,
+  File01Icon,
+  StarIcon,
+  Settings01Icon,
 } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { NotificationBadge } from "@/components/dashboard/notification-badge"
+import { useNotifications } from "@/hooks/use-notifications"
 import { cn } from "@/lib/utils"
 import type { UserRole } from "@/lib/auth/roles"
-
 import { getUserApplicationStatus } from "@/lib/actions/bookings"
 
 interface DashboardSidebarProps {
@@ -39,6 +44,8 @@ interface NavItem {
   label: string
   href: string
   icon: React.ComponentProps<typeof HugeiconsIcon>["icon"]
+  badgeCount?: number
+  badgeVariant?: "default" | "urgent" | "subtle"
 }
 
 interface NavSection {
@@ -51,6 +58,7 @@ export function DashboardSidebar({ role, className, onNavigate }: DashboardSideb
   const { user } = useUser()
   const { signOut } = useClerk()
   const [isLoggingOut, setIsLoggingOut] = React.useState(false)
+  const { counts } = useNotifications()
   const [appStatus, setAppStatus] = React.useState<{ hasAppliedRider: boolean; hasAppliedProvider: boolean }>({
     hasAppliedRider: true,
     hasAppliedProvider: true,
@@ -97,37 +105,177 @@ export function DashboardSidebar({ role, className, onNavigate }: DashboardSideb
       case "admin":
         return [
           {
+            title: "Operations",
             items: [
-              { label: "Dashboard", href: "/dashboard/admin", icon: DashboardSquare01Icon },
-              { label: "Bookings", href: "/dashboard/admin/bookings", icon: Calendar01Icon },
-              { label: "Messages / Inbox", href: "/dashboard/admin/messages", icon: Message01Icon },
-              { label: "Riders", href: "/dashboard/admin/riders", icon: Motorbike01Icon },
-              { label: "Rental Providers", href: "/dashboard/admin/providers", icon: Key01Icon },
-              { label: "Customers", href: "/dashboard/admin/customers", icon: UserGroupIcon },
-              { label: "Verification", href: "/dashboard/admin/verification", icon: ShieldCheckIcon },
-              { label: "Vehicle Rentals", href: "/dashboard/admin/rentals", icon: Key01Icon },
-              { label: "Fleet & Vehicles", href: "/dashboard/admin/vehicles", icon: Car01Icon },
-              { label: "Notifications", href: "/dashboard/admin/notifications", icon: BellIcon },
+
+              {
+                label: "Dashboard",
+                href: "/dashboard/admin",
+                icon: DashboardSquare01Icon,
+                badgeCount: counts.totalActionable,
+              },
+              {
+                label: "Messages / Inbox",
+                href: "/dashboard/admin/inbox",
+                icon: Mail01Icon,
+                badgeCount: counts.messages,
+              },
+              {
+                label: "Notifications",
+                href: "/dashboard/admin/notifications",
+                icon: Notification01Icon,
+                badgeCount: counts.notifications,
+              },
+            ],
+          },
+          {
+            title: "Services & Bookings",
+            items: [
+              {
+                label: "Bookings",
+                href: "/dashboard/admin/bookings",
+                icon: Calendar01Icon,
+                badgeCount: counts.bookings,
+              },
+              {
+                label: "Rides",
+                href: "/dashboard/admin/rides",
+                icon: Motorbike01Icon,
+                badgeCount: counts.rides,
+              },
+              {
+                label: "Deliveries",
+                href: "/dashboard/admin/deliveries",
+                icon: PackageIcon,
+                badgeCount: counts.deliveries,
+              },
+              {
+                label: "Rentals",
+                href: "/dashboard/admin/rentals",
+                icon: Key01Icon,
+                badgeCount: counts.rentals,
+              },
+              {
+                label: "Vehicles",
+                href: "/dashboard/admin/vehicles",
+                icon: Car01Icon,
+                badgeCount: counts.vehicles,
+              },
+            ],
+          },
+          {
+            title: "Partners & Users",
+            items: [
+              {
+                label: "Verification",
+                href: "/dashboard/admin/verification",
+                icon: ShieldCheckIcon,
+                badgeCount: counts.verification,
+                badgeVariant: "urgent",
+              },
+              {
+                label: "Riders",
+                href: "/dashboard/admin/riders",
+                icon: Motorbike01Icon,
+                badgeCount: counts.riders,
+              },
+              {
+                label: "Rental Providers",
+                href: "/dashboard/admin/providers",
+                icon: Key01Icon,
+                badgeCount: counts.providers,
+              },
+              {
+                label: "Customers",
+                href: "/dashboard/admin/customers",
+                icon: UserGroupIcon,
+                badgeCount: counts.customers,
+              },
+            ],
+          },
+          {
+            title: "Safety & Compliance",
+            items: [
+              {
+                label: "Disputes",
+                href: "/dashboard/admin/disputes",
+                icon: AlertCircleIcon,
+                badgeCount: counts.disputes,
+                badgeVariant: "urgent",
+              },
+              {
+                label: "Reports",
+                href: "/dashboard/admin/reports",
+                icon: File01Icon,
+                badgeCount: counts.reports,
+              },
+              {
+                label: "Reviews",
+                href: "/dashboard/admin/reviews",
+                icon: StarIcon,
+                badgeCount: counts.reviews,
+              },
+            ],
+          },
+          {
+            title: "Settings & Logs",
+            items: [
+              {
+                label: "Audit Logs",
+                href: "/dashboard/admin/audit-logs",
+                icon: File01Icon,
+              },
+              {
+                label: "Settings",
+                href: "/dashboard/admin/settings",
+                icon: Settings01Icon,
+              },
             ],
           },
         ]
       case "rider":
         return [
           {
+            title: "Activity",
             items: [
-              { label: "My Rides", href: "/dashboard/rider", icon: Motorbike01Icon },
-              { label: "Messages / Inbox", href: "/dashboard/rider/messages", icon: Message01Icon },
-              { label: "History", href: "/dashboard/rider/history", icon: Calendar01Icon },
+              {
+                label: "My Rides",
+                href: "/dashboard/rider",
+                icon: Motorbike01Icon,
+                badgeCount: counts.rides,
+              },
+              {
+                label: "Messages / Inbox",
+                href: "/dashboard/rider/inbox",
+                icon: Mail01Icon,
+                badgeCount: counts.messages,
+              },
+              {
+                label: "History & Bookings",
+                href: "/dashboard/rider/history",
+                icon: Calendar01Icon,
+                badgeCount: counts.bookings,
+              },
             ],
           },
         ]
       case "provider":
         return [
           {
+            title: "Rental Business",
             items: [
-              { label: "My Listings", href: "/dashboard/provider", icon: Key01Icon },
-              { label: "Requests", href: "/dashboard/provider", icon: Calendar01Icon },
-              { label: "Messages / Inbox", href: "/dashboard/provider/messages", icon: Message01Icon },
+              {
+                label: "Rental Manager",
+                href: "/dashboard/provider",
+                icon: Key01Icon,
+                badgeCount: counts.rentals,
+              },
+              {
+                label: "Messages / Inbox",
+                href: "/dashboard/provider/inbox",
+                icon: Mail01Icon,
+                badgeCount: counts.messages,
+              },
             ],
           },
         ]
@@ -143,18 +291,48 @@ export function DashboardSidebar({ role, className, onNavigate }: DashboardSideb
 
         const sections: NavSection[] = [
           {
+            title: "Activity",
             items: [
-              { label: "Overview", href: "/dashboard/customer", icon: DashboardSquare01Icon },
-              { label: "My Bookings", href: "/dashboard/customer/bookings", icon: Calendar01Icon },
-              { label: "Messages / Inbox", href: "/dashboard/customer/messages", icon: Message01Icon },
+              {
+                label: "Overview",
+                href: "/dashboard/customer",
+                icon: DashboardSquare01Icon,
+              },
+              {
+                label: "Messages / Inbox",
+                href: "/dashboard/customer/inbox",
+                icon: Mail01Icon,
+                badgeCount: counts.messages,
+              },
+              {
+                label: "My Bookings",
+                href: "/dashboard/customer/bookings",
+                icon: Calendar01Icon,
+                badgeCount: counts.bookings,
+              },
             ],
           },
           {
             title: "Book Services",
             items: [
-              { label: "Book a Ride", href: "/dashboard/customer/book/ride", icon: Motorbike01Icon },
-              { label: "Rent a Vehicle", href: "/dashboard/customer/book/rental", icon: Key01Icon },
-              { label: "Send Delivery", href: "/dashboard/customer/book/delivery", icon: PackageIcon },
+              {
+                label: "Book a Ride",
+                href: "/dashboard/customer/book/ride",
+                icon: Motorbike01Icon,
+                badgeCount: counts.rides,
+              },
+              {
+                label: "Rent a Vehicle",
+                href: "/dashboard/customer/book/rental",
+                icon: Key01Icon,
+                badgeCount: counts.rentals,
+              },
+              {
+                label: "Send Delivery",
+                href: "/dashboard/customer/book/delivery",
+                icon: PackageIcon,
+                badgeCount: counts.deliveries,
+              },
             ],
           },
         ]
@@ -237,14 +415,24 @@ export function DashboardSidebar({ role, className, onNavigate }: DashboardSideb
                     href={item.href}
                     onClick={onNavigate}
                     className={cn(
-                      "flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold transition-all",
+                      "flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-all group",
                       isActive
                         ? "bg-primary text-primary-foreground shadow-xs"
                         : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     )}
                   >
-                    <HugeiconsIcon icon={Icon} size={17} className="shrink-0" />
-                    <span>{item.label}</span>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <HugeiconsIcon icon={Icon} size={17} className="shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </div>
+
+                    {item.badgeCount !== undefined && item.badgeCount > 0 && (
+                      <NotificationBadge
+                        count={item.badgeCount}
+                        variant={item.badgeVariant || (isActive ? "subtle" : "default")}
+                        className={isActive ? "bg-primary-foreground text-primary font-bold" : undefined}
+                      />
+                    )}
                   </Link>
                 )
               })}
