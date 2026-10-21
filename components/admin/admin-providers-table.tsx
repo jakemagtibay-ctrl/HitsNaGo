@@ -20,6 +20,7 @@ import {
   updateProviderStatus,
   deleteProvider,
 } from "@/lib/actions/admin"
+import { VerifiedBadge } from "@/components/common/verified-badge"
 
 interface AdminProvidersTableProps {
   initialProviders: AdminProviderItem[]
@@ -227,9 +228,12 @@ export function AdminProvidersTable({ initialProviders }: AdminProvidersTablePro
                   <tr key={p.id} className="hover:bg-muted/20 transition-colors">
                     <td className="py-3.5 px-4">
                       <div className="flex flex-col">
-                        <span className="font-heading font-bold text-foreground text-xs">
-                          {p.name}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-heading font-bold text-foreground text-xs">
+                            {p.name}
+                          </span>
+                          <VerifiedBadge role="provider" isVerified={p.isVerified} size="sm" />
+                        </div>
                         <span className="text-[11px] text-muted-foreground">
                           {p.email}
                         </span>
@@ -243,9 +247,12 @@ export function AdminProvidersTable({ initialProviders }: AdminProvidersTablePro
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <span className="font-medium text-foreground">
-                        {p.businessName || "—"}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-foreground">
+                          {p.businessName || "—"}
+                        </span>
+                        {p.businessName && <VerifiedBadge role="provider" isVerified={p.isVerified} size="sm" />}
+                      </div>
                     </td>
 
                     <td className="py-3.5 px-4">

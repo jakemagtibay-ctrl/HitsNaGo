@@ -2,7 +2,7 @@ import * as React from "react"
 import Link from "next/link"
 import { currentUser } from "@clerk/nextjs/server"
 import { requireRole } from "@/lib/auth/roles"
-import { getRiderRecord, getRiderBookings, getAvailableBookingsForRider } from "@/lib/actions/bookings"
+import { getRiderRecord, getRiderBookings, getAvailableBookingsForRider, getUserApplicationStatus } from "@/lib/actions/bookings"
 import { RiderBookingsView } from "@/components/rider/rider-bookings-view"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Motorbike01Icon, Calendar01Icon, StarIcon } from "@hugeicons/core-free-icons"
@@ -11,6 +11,9 @@ import { ButuanCityMap } from "@/components/maps/butuan-city-map"
 import { convertBookingToMapMarkers } from "@/lib/maps/geocode"
 import { cn } from "@/lib/utils"
 import type { Metadata } from "next"
+import { DashboardVerificationBanner } from "@/components/dashboard/dashboard-verification-banner"
+import { VerifiedBadge } from "@/components/common/verified-badge"
+import type { VerificationStatus } from "@/types/verification"
 
 export const metadata: Metadata = {
   title: "My Rides - HitsNaGo Rider",
@@ -20,21 +23,45 @@ export const metadata: Metadata = {
 export default async function RiderDashboardPage() {
   await requireRole("rider")
   const clerkUser = await currentUser()
-  const rider = await getRiderRecord()
+  const [rider, appStatus] = await Promise.all([
+    getRiderRecord(),
+    getUserApplicationStatus(),
+  ])
 
   if (!rider) {
+    const fallbackStatus: VerificationStatus = appStatus.riderApplication?.status || (appStatus.isRiderPending ? "pending" : "unverified")
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-        <div className="size-14 rounded-2xl bg-destructive/10 text-destructive flex items-center justify-center">
-          <HugeiconsIcon icon={Motorbike01Icon} size={28} />
+      <div className="flex flex-col items-center justify-center py-16 text-center gap-6 max-w-xl mx-auto">
+        <div className="size-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+          <HugeiconsIcon icon={Motorbike01Icon} size={32} />
         </div>
-        <h2 className="font-heading text-xl font-bold text-foreground">Rider Account Not Found</h2>
-        <p className="text-sm text-muted-foreground max-w-md">
-          Your logged-in email ({clerkUser?.emailAddresses[0]?.emailAddress}) is not registered in the system as an approved rider.
-          Please contact an administrator to register your email in the riders list.
-        </p>
+        <div className="flex flex-col gap-2">
+          <h2 className="font-heading text-xl font-bold text-foreground">Rider Verification Portal</h2>
+          <p className="text-sm text-muted-foreground">
+            Your account ({clerkUser?.emailAddresses[0]?.emailAddress}) is not yet activated as an active rider. Submit or check your verification application below.
+          </p>
+        </div>
+        <div className="w-full text-left">
+          <DashboardVerificationBanner
+            role="rider"
+            status={fallbackStatus}
+            rejectionReason={appStatus.riderApplication?.rejectionReason}
+          />
+        </div>
       </div>
     )
+  }
+
+  // Resolve persisted verification status
+  let riderStatus: VerificationStatus = "unverified"
+  if (rider.is_verified || rider.verification_status === "verified") {
+    riderStatus = "verified"
+  } else if (rider.verification_status === "resubmission_required" || appStatus.isRiderResubmission) {
+    riderStatus = "resubmission_required"
+  } else if (rider.verification_status === "rejected" || appStatus.isRiderRejected) {
+    riderStatus = "rejected"
+  } else if (rider.verification_status === "pending" || appStatus.isRiderPending) {
+    riderStatus = "pending"
   }
 
   const [bookings, availableResult] = await Promise.all([
@@ -61,11 +88,27 @@ export default async function RiderDashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
         <div className="flex flex-col gap-1">
-          <h1 className="font-heading text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-            My Rides
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            {rider.name} • {rider.vehicle_model || "Motorcycle"} ({rider.plate_number || "Verified"})
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="font-heading text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+              My Rides
+            </h1>
+            <VerifiedBadge
+              role="rider"
+              isVerified={rider.is_verified}
+              verificationStatus={rider.verification_status}
+              size="md"
+              showText
+            />
+          </div>
+          <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1.5 flex-wrap">
+            <span className="font-medium text-foreground">{rider.name}</span>
+            <VerifiedBadge
+              role="rider"
+              isVerified={rider.is_verified}
+              verificationStatus={rider.verification_status}
+              size="sm"
+            />
+            <span>• {rider.vehicle_model || "Motorcycle"} ({rider.plate_number || "Active Dispatch"})</span>
           </p>
         </div>
 
@@ -84,6 +127,15 @@ export default async function RiderDashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Verification Status Banner */}
+      <DashboardVerificationBanner
+        role="rider"
+        status={riderStatus}
+        rejectionReason={rider.rejection_reason || appStatus.riderApplication?.rejectionReason}
+        submittedAt={rider.submitted_at || rider.created_at}
+      />
+
 
       {/* City Dispatch & Route Map */}
       <div className="flex flex-col gap-2">

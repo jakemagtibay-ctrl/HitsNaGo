@@ -24,6 +24,7 @@ import { ButuanCityMap } from "@/components/maps/butuan-city-map"
 import { convertBookingToMapMarkers } from "@/lib/maps/geocode"
 import { cn } from "@/lib/utils"
 import type { Metadata } from "next"
+import { DashboardVerificationBanner } from "@/components/dashboard/dashboard-verification-banner"
 
 export const metadata: Metadata = {
   title: "Customer Portal - HitsNaGo",
@@ -256,7 +257,25 @@ export default async function CustomerDashboardPage() {
         )}
       </div>
 
-      {/* Show "Become a Rider/Provider" only to customers who haven't applied (Requirement 5) */}
+      {/* Partner Application Status or Application Prompt */}
+      {appStatus.hasAppliedRider && !appStatus.isRiderVerified && (
+        <DashboardVerificationBanner
+          role="rider"
+          status={appStatus.riderApplication?.status || (appStatus.isRiderPending ? "pending" : "unverified")}
+          rejectionReason={appStatus.riderApplication?.rejectionReason}
+          submittedAt={appStatus.riderApplication?.submittedAt}
+        />
+      )}
+
+      {appStatus.hasAppliedProvider && !appStatus.isProviderVerified && (
+        <DashboardVerificationBanner
+          role="provider"
+          status={appStatus.providerApplication?.status || (appStatus.isProviderPending ? "pending" : "unverified")}
+          rejectionReason={appStatus.providerApplication?.rejectionReason}
+          submittedAt={appStatus.providerApplication?.submittedAt}
+        />
+      )}
+
       {(!appStatus.hasAppliedRider || !appStatus.hasAppliedProvider) && (
         <Card className="border-border/80 bg-muted/20">
           <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

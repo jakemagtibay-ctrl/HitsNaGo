@@ -26,6 +26,7 @@ import {
 } from "@/lib/cancellations/metadata"
 import { cn } from "@/lib/utils"
 import { AdminIncidentResolutionModal } from "@/components/admin/admin-incident-resolution-modal"
+import { VerifiedBadge } from "@/components/common/verified-badge"
 
 interface AdminBookingsTableProps {
   initialBookings: Booking[]
@@ -516,8 +517,9 @@ export function AdminBookingsTable({
                         <div className="w-full max-w-full min-w-0 overflow-hidden">
                           {b.rider ? (
                             <div className="flex flex-col min-w-0 w-full gap-0.5">
-                              <span className="block truncate text-foreground font-semibold text-xs" title={b.rider.name}>
-                                {b.rider.name}
+                              <span className="flex items-center gap-1 text-foreground font-semibold text-xs overflow-hidden" title={b.rider.name}>
+                                <span className="truncate">{b.rider.name}</span>
+                                <VerifiedBadge role="rider" isVerified={b.rider.is_verified} size="sm" />
                               </span>
                               <span
                                 className="block truncate text-[10px] text-muted-foreground"
@@ -651,8 +653,9 @@ export function AdminBookingsTable({
                       }`}
                     >
                       <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-xs font-bold text-foreground">{rider.name}</span>
+                          <VerifiedBadge role="rider" isVerified={rider.is_verified} size="sm" />
                           {assigningBooking.rider_id === rider.id && (
                             <span className="text-[10px] text-primary font-semibold">(Current)</span>
                           )}

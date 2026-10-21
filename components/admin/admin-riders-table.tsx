@@ -21,6 +21,7 @@ import {
   updateRiderStatus,
   deleteRider,
 } from "@/lib/actions/admin"
+import { VerifiedBadge } from "@/components/common/verified-badge"
 
 interface AdminRidersTableProps {
   initialRiders: AdminRiderItem[]
@@ -250,9 +251,12 @@ export function AdminRidersTable({ initialRiders, dbNotice = null }: AdminRiders
                   <tr key={r.id} className="hover:bg-muted/20 transition-colors">
                     <td className="py-3.5 px-4">
                       <div className="flex flex-col">
-                        <span className="font-heading font-bold text-foreground text-xs">
-                          {r.name}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-heading font-bold text-foreground text-xs">
+                            {r.name}
+                          </span>
+                          <VerifiedBadge role="rider" isVerified={r.isVerified} size="sm" />
+                        </div>
                         <span className="text-[11px] text-muted-foreground">
                           {r.email}
                         </span>

@@ -15,6 +15,7 @@ import {
   MOCK_BUTUAN_RENTAL_LISTINGS,
   type ButuanRentalItem,
 } from "@/lib/mock-data/butuan-rental-listings"
+import { VerifiedBadge } from "@/components/common/verified-badge"
 
 export default function AdminRentalsPage() {
   const [listings, setListings] = React.useState<ButuanRentalItem[]>(MOCK_BUTUAN_RENTAL_LISTINGS)
@@ -178,8 +179,9 @@ export default function AdminRentalsPage() {
                 <div className="flex items-center justify-between gap-2 pt-3 border-t border-border/60">
                   <div className="flex flex-col overflow-hidden">
                     <span className="text-[10px] text-muted-foreground uppercase">Host</span>
-                    <span className="font-semibold text-foreground truncate">
-                      {item.provider.businessName}
+                    <span className="font-semibold text-foreground flex items-center gap-1 truncate">
+                      <span className="truncate">{item.provider.businessName}</span>
+                      <VerifiedBadge role="provider" isVerified={item.provider.isVerified} size="sm" />
                     </span>
                   </div>
 
@@ -302,11 +304,16 @@ export default function AdminRentalsPage() {
               <span className="text-[10px] text-muted-foreground uppercase font-semibold">
                 Verified Provider
               </span>
-              <span className="font-bold text-foreground text-sm">
-                {selectedItem.provider.businessName}
-              </span>
-              <span className="text-muted-foreground text-[11px]">
-                Host: {selectedItem.provider.name} • Rating: ★ {selectedItem.provider.rating}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-bold text-foreground text-sm">
+                  {selectedItem.provider.businessName}
+                </span>
+                <VerifiedBadge role="provider" isVerified={selectedItem.provider.isVerified} size="sm" />
+              </div>
+              <span className="text-muted-foreground text-[11px] flex items-center gap-1 flex-wrap">
+                <span>Host: {selectedItem.provider.name}</span>
+                <VerifiedBadge role="provider" isVerified={selectedItem.provider.isVerified} size="sm" />
+                <span>• Rating: ★ {selectedItem.provider.rating}</span>
               </span>
             </div>
 

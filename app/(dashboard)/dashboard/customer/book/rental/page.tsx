@@ -37,6 +37,7 @@ import { checkRentalAvailability, checkAllListingsAvailability } from "@/lib/act
 import type { ModelAvailabilityResult } from "@/types/rental"
 import type { MapMarker } from "@/components/maps/types"
 import { cn } from "@/lib/utils"
+import { VerifiedBadge } from "@/components/common/verified-badge"
 
 const STEPS: StepItem[] = [
   { id: 1, label: "Browse Catalog", sublabel: "Select Equipment/Vehicle" },
@@ -518,8 +519,9 @@ export default function RentalBookingPage() {
                               <span className="text-[10px] text-muted-foreground uppercase">
                                 Provided by
                               </span>
-                              <span className="text-xs font-semibold text-foreground line-clamp-1">
-                                {item.provider.businessName}
+                              <span className="text-xs font-semibold text-foreground flex items-center gap-1 line-clamp-1">
+                                <span>{item.provider.businessName}</span>
+                                <VerifiedBadge role="provider" isVerified={item.provider.isVerified} size="sm" />
                               </span>
                             </div>
 
@@ -829,8 +831,9 @@ export default function RentalBookingPage() {
 
                   <div className="flex items-start justify-between pb-3 border-b border-border/60">
                     <span className="text-muted-foreground">Verified Provider</span>
-                    <span className="font-semibold text-foreground">
-                      {selectedItem.provider.businessName} (★ {selectedItem.provider.rating})
+                    <span className="font-semibold text-foreground flex items-center gap-1">
+                      <span>{selectedItem.provider.businessName} (★ {selectedItem.provider.rating})</span>
+                      <VerifiedBadge role="provider" isVerified={selectedItem.provider.isVerified} size="sm" />
                     </span>
                   </div>
 

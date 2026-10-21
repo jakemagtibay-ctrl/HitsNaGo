@@ -281,13 +281,18 @@ export function DashboardSidebar({ role, className, onNavigate }: DashboardSideb
         ]
       case "customer":
       default: {
-        const partnerItems: NavItem[] = []
-        if (!appStatus.hasAppliedRider) {
-          partnerItems.push({ label: "Become a Rider", href: "/dashboard/customer/apply/rider", icon: Motorbike01Icon })
-        }
-        if (!appStatus.hasAppliedProvider) {
-          partnerItems.push({ label: "Become a Provider", href: "/dashboard/customer/apply/provider", icon: Key01Icon })
-        }
+        const partnerItems: NavItem[] = [
+          {
+            label: appStatus.hasAppliedRider ? "Rider Application" : "Become a Rider",
+            href: "/dashboard/customer/apply/rider",
+            icon: Motorbike01Icon,
+          },
+          {
+            label: appStatus.hasAppliedProvider ? "Provider Application" : "Become a Provider",
+            href: "/dashboard/customer/apply/provider",
+            icon: Key01Icon,
+          },
+        ]
 
         const sections: NavSection[] = [
           {

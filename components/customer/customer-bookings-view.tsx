@@ -24,6 +24,7 @@ import { CustomerTripTrackingModal } from "@/components/customer/customer-trip-t
 import { parseBookingCancellationInfo } from "@/lib/cancellations/metadata"
 import { cn } from "@/lib/utils"
 import type { Booking } from "@/lib/actions/bookings"
+import { VerifiedBadge } from "@/components/common/verified-badge"
 
 interface CustomerBookingsViewProps {
   initialBookings: Booking[]
@@ -131,7 +132,10 @@ export function CustomerBookingsView({ initialBookings }: CustomerBookingsViewPr
                         </span>
                       </div>
                       <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-[11px]">
-                        <span>Rider: <strong className="text-foreground">{booking.rider.name}</strong></span>
+                        <span className="flex items-center gap-1">
+                          Rider: <strong className="text-foreground">{booking.rider.name}</strong>
+                          <VerifiedBadge role="rider" isVerified={booking.rider.is_verified} size="sm" />
+                        </span>
                         {booking.rider.vehicle_model && <span>• {booking.rider.vehicle_model}</span>}
                         {booking.rider.plate_number && <span>({booking.rider.plate_number})</span>}
                         {booking.rider.rating && <span>• ★{Number(booking.rider.rating).toFixed(2)}</span>}

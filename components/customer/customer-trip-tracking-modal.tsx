@@ -21,6 +21,7 @@ import { resolveButuanCoordinates, parseBookingGeo } from "@/lib/maps/geocode"
 import { getRoadRoute, type RouteResult } from "@/lib/maps/routing"
 import type { Booking } from "@/lib/actions/bookings"
 import { getOrCreateBookingConversation, createSupportConversation } from "@/lib/actions/messaging"
+import { VerifiedBadge } from "@/components/common/verified-badge"
 
 interface CustomerTripTrackingModalProps {
   booking: Booking
@@ -280,7 +281,11 @@ export function CustomerTripTrackingModal({
                 </div>
 
                 <div className="text-muted-foreground flex flex-col gap-1 text-[11px]">
-                  <div>Name: <strong className="text-foreground">{booking.rider.name}</strong></div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span>Name:</span>
+                    <strong className="text-foreground">{booking.rider.name}</strong>
+                    <VerifiedBadge role="rider" isVerified={booking.rider.is_verified} size="sm" />
+                  </div>
                   {booking.rider.vehicle_model && (
                     <div>Vehicle: <strong className="text-foreground">{booking.rider.vehicle_model}</strong> ({booking.rider.plate_number || "Verified"})</div>
                   )}
