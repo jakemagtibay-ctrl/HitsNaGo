@@ -21,6 +21,7 @@ import { ProviderIncidentDialog } from "@/components/provider/provider-incident-
 import { ProviderUnitModal } from "@/components/provider/provider-unit-modal"
 import type { MapMarker } from "@/components/maps/types"
 import type { Booking, Provider } from "@/lib/actions/bookings"
+import { updateBookingStatus } from "@/lib/actions/bookings"
 import type { RentalUnit } from "@/types/rental"
 import type { ButuanRentalItem } from "@/lib/mock-data/butuan-rental-listings"
 
@@ -86,6 +87,35 @@ export function ProviderPortalView({
   // Incident dialog state
   const [selectedBookingForIncident, setSelectedBookingForIncident] = React.useState<Booking | null>(null)
   const [isIncidentDialogOpen, setIsIncidentDialogOpen] = React.useState<boolean>(false)
+  const [updatingBookingId, setUpdatingBookingId] = React.useState<string | null>(null)
+
+  const handleUpdateRentalStatus = async (
+    bookingId: string,
+    newStatus: "accepted" | "in_progress" | "completed"
+  ) => {
+    setUpdatingBookingId(bookingId)
+    try {
+      const { error } = await updateBookingStatus(bookingId, newStatus)
+      if (error) {
+        setMessage(`Error: ${error}`)
+      } else {
+        setBookings((prev) =>
+          prev.map((b) => (b.id === bookingId ? { ...b, status: newStatus } : b))
+        )
+        const labels: Record<string, string> = {
+          accepted: "Rental request confirmed and reserved.",
+          in_progress: "Vehicle handed over. Rental period is now active.",
+          completed: "Vehicle return finalized. Rental completed successfully.",
+        }
+        setMessage(labels[newStatus] || `Rental status updated to ${newStatus}.`)
+      }
+    } catch {
+      setMessage("Failed to update rental status.")
+    } finally {
+      setUpdatingBookingId(null)
+      setTimeout(() => setMessage(null), 5000)
+    }
+  }
 
   const handleAction = (id: string, newStatus: "accepted" | "declined") => {
     setRequests((prev) =>
@@ -323,7 +353,7 @@ export function ProviderPortalView({
                         ₱{Number(booking.estimated_fare).toLocaleString("en-PH")}
                       </span>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
                         <Link
                           href={`/dashboard/provider/inbox?bookingId=${booking.id}`}
                           className="inline-flex items-center justify-center rounded-lg border border-border bg-card px-2.5 h-7 text-xs font-semibold text-foreground hover:bg-muted transition-colors gap-1"
@@ -331,6 +361,42 @@ export function ProviderPortalView({
                           <HugeiconsIcon icon={Mail01Icon} size={12} />
                           <span>Chat</span>
                         </Link>
+
+                        {booking.status === "pending" && (
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs px-2.5 gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                            disabled={updatingBookingId === booking.id}
+                            onClick={() => handleUpdateRentalStatus(booking.id, "accepted")}
+                          >
+                            <HugeiconsIcon icon={CheckmarkCircle01Icon} size={12} />
+                            {updatingBookingId === booking.id ? "Updating..." : "Approve Rental"}
+                          </Button>
+                        )}
+
+                        {booking.status === "accepted" && (
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs px-2.5 gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
+                            disabled={updatingBookingId === booking.id}
+                            onClick={() => handleUpdateRentalStatus(booking.id, "in_progress")}
+                          >
+                            <HugeiconsIcon icon={CheckmarkCircle01Icon} size={12} />
+                            {updatingBookingId === booking.id ? "Updating..." : "Handover Vehicle"}
+                          </Button>
+                        )}
+
+                        {isInProgress && (
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs px-2.5 gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
+                            disabled={updatingBookingId === booking.id}
+                            onClick={() => handleUpdateRentalStatus(booking.id, "completed")}
+                          >
+                            <HugeiconsIcon icon={CheckmarkCircle01Icon} size={12} />
+                            {updatingBookingId === booking.id ? "Updating..." : "Complete Return"}
+                          </Button>
+                        )}
 
                         {isEligibleToCancel && (
                           <Button
@@ -340,7 +406,7 @@ export function ProviderPortalView({
                             onClick={() => handleOpenIncidentDialog(booking)}
                           >
                             <HugeiconsIcon icon={Cancel01Icon} size={12} />
-                            Cancel Rental
+                            {booking.status === "pending" ? "Decline Request" : "Cancel Rental"}
                           </Button>
                         )}
 

@@ -16,83 +16,87 @@ import { AdminChartCard } from "@/components/admin/admin-chart-card"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { getAdminFinancialReport, type FinancialReportData } from "@/lib/actions/admin"
 
 export default function AdminReportsPage() {
   const [activeTimeframe, setActiveTimeframe] = React.useState<"today" | "7d" | "30d" | "3m">("30d")
+  const [reportData, setReportData] = React.useState<FinancialReportData>({
+    totalRevenue: 0,
+    totalBookings: 0,
+    completedRides: 0,
+    rentalTransactions: 0,
+    deliveries: 0,
+    cancellations: 0,
+    disputes: 0,
+    chartData: [],
+    bookings: [],
+  })
+  const [isLoading, setIsLoading] = React.useState<boolean>(true)
 
-  const reportData = React.useMemo(() => {
-    switch (activeTimeframe) {
-      case "today":
-        return {
-          totalRevenue: 2840,
-          totalBookings: 18,
-          completedRides: 12,
-          rentalTransactions: 3,
-          deliveries: 3,
-          cancellations: 1,
-          disputes: 0,
-          chartData: [
-            { label: "8 AM", value: 180 },
-            { label: "10 AM", value: 420 },
-            { label: "12 PM", value: 650 },
-            { label: "2 PM", value: 580 },
-            { label: "4 PM", value: 710 },
-            { label: "6 PM", value: 300 },
-          ],
+  React.useEffect(() => {
+    let cancelled = false
+    setIsLoading(true)
+    getAdminFinancialReport(activeTimeframe)
+      .then((data) => {
+        if (!cancelled) {
+          setReportData(data)
+          setIsLoading(false)
         }
-      case "7d":
-        return {
-          totalRevenue: 34500,
-          totalBookings: 142,
-          completedRides: 86,
-          rentalTransactions: 28,
-          deliveries: 28,
-          cancellations: 5,
-          disputes: 2,
-          chartData: [
-            { label: "Mon", value: 4200 },
-            { label: "Tue", value: 3900 },
-            { label: "Wed", value: 5100 },
-            { label: "Thu", value: 4800 },
-            { label: "Fri", value: 6200 },
-            { label: "Sat", value: 6800 },
-            { label: "Sun", value: 3500 },
-          ],
-        }
-      case "3m":
-        return {
-          totalRevenue: 384000,
-          totalBookings: 1820,
-          completedRides: 1120,
-          rentalTransactions: 360,
-          deliveries: 340,
-          cancellations: 42,
-          disputes: 8,
-          chartData: [
-            { label: "Month 1", value: 110000 },
-            { label: "Month 2", value: 128000 },
-            { label: "Month 3", value: 146000 },
-          ],
-        }
-      case "30d":
-      default:
-        return {
-          totalRevenue: 148500,
-          totalBookings: 580,
-          completedRides: 350,
-          rentalTransactions: 115,
-          deliveries: 115,
-          cancellations: 18,
-          disputes: 4,
-          chartData: [
-            { label: "Week 1", value: 32000 },
-            { label: "Week 2", value: 36500 },
-            { label: "Week 3", value: 38000 },
-            { label: "Week 4", value: 42000 },
-          ],
-        }
+      })
+      .catch((err) => {
+        console.error("Failed to load report data:", err)
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
     }
   }, [activeTimeframe])
+
+  const handleExportCsv = () => {
+    if (!reportData || !reportData.bookings || reportData.bookings.length === 0) {
+      alert("No booking records available to export for the selected period.")
+      return
+    }
+
+    const headers = [
+      "Booking Reference",
+      "Service Type",
+      "Customer Name",
+      "Customer Email",
+      "Pickup Location",
+      "Destination",
+      "Scheduled At",
+      "Status",
+      "Fare (PHP)",
+      "Created At",
+    ]
+    const rows = reportData.bookings.map((b) => [
+      `"${b.reference.replace(/"/g, '""')}"`,
+      `"${b.service_type}"`,
+      `"${(b.customer_name || "").replace(/"/g, '""')}"`,
+      `"${(b.customer_email || "").replace(/"/g, '""')}"`,
+      `"${(b.pickup || "").replace(/"/g, '""')}"`,
+      `"${(b.destination || "").replace(/"/g, '""')}"`,
+      `"${b.scheduled_at}"`,
+      `"${b.status}"`,
+      b.estimated_fare,
+      `"${b.created_at}"`,
+    ])
+
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute(
+      "download",
+      `hitsnago-report-${activeTimeframe}-${new Date().toISOString().slice(0, 10)}.csv`
+    )
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="flex flex-col gap-6 pb-16">
@@ -105,7 +109,8 @@ export default function AdminReportsPage() {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => alert("Demo: Exporting financial report as CSV...")}
+          onClick={handleExportCsv}
+          disabled={isLoading || reportData.bookings.length === 0}
           className="text-xs font-semibold gap-1.5"
         >
           <HugeiconsIcon icon={Download01Icon} size={14} />

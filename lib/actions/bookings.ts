@@ -10,7 +10,7 @@ import { currentUser } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { uploadVerificationDocument, getDocumentSignedUrl } from "@/lib/verification/storage"
 import { sendSystemNotification } from "@/lib/actions/notifications"
-import { requireRole } from "@/lib/auth/roles"
+import { requireRole, getCurrentUserRole } from "@/lib/auth/roles"
 import { GOVERNMENT_ID_OPTIONS, type GovernmentIdType, type VerificationStatus } from "@/types/verification"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -132,7 +132,38 @@ export async function createRideBooking(
     const user = await currentUser()
     if (!user) return { booking: null, error: "Not authenticated." }
 
+    if (!input.pickup?.trim()) {
+      return { booking: null, error: "Please enter a valid pickup location in Butuan City." }
+    }
+    if (!input.destination?.trim()) {
+      return { booking: null, error: "Please enter a valid destination in Butuan City." }
+    }
+    if (!input.scheduledAt || isNaN(new Date(input.scheduledAt).getTime())) {
+      return { booking: null, error: "Please specify a valid scheduled pickup date and time." }
+    }
+    if (!input.estimatedFare || Number(input.estimatedFare) <= 0) {
+      return { booking: null, error: "Invalid fare estimate. Please select valid ride locations." }
+    }
+
     const db = createServiceClient()
+
+    // 1. Duplicate check: prevent rapid repeated submissions (< 30 seconds)
+    const thirtySecAgo = new Date(Date.now() - 30 * 1000).toISOString()
+    const { data: duplicate } = await db
+      .from("bookings")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
+      .eq("customer_id", user.id)
+      .eq("service_type", "ride")
+      .eq("pickup", input.pickup.trim())
+      .eq("destination", input.destination.trim())
+      .eq("status", "pending")
+      .gte("created_at", thirtySecAgo)
+      .maybeSingle()
+
+    if (duplicate) {
+      console.warn(`[createRideBooking] Duplicate submission detected for user ${user.id}, returning existing booking ${duplicate.reference}.`)
+      return { booking: duplicate as Booking, error: null }
+    }
 
     const customerName =
       user.fullName ||
@@ -156,18 +187,18 @@ export async function createRideBooking(
         customer_name: customerName,
         customer_email: customerEmail,
         service_type: "ride",
-        vehicle_category: input.vehicleCategory,
-        pickup: input.pickup,
-        destination: input.destination,
+        vehicle_category: input.vehicleCategory || "motorcycle",
+        pickup: input.pickup.trim(),
+        destination: input.destination.trim(),
         scheduled_at: input.scheduledAt,
-        passengers: input.passengers,
-        payment_mode: input.paymentMode,
+        passengers: Math.max(1, input.passengers || 1),
+        payment_mode: input.paymentMode || "cash",
         estimated_fare: input.estimatedFare,
         notes: serializedNotes,
         status: "pending",
         rider_id: null,
       })
-      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
       .single()
 
     if (error) {
@@ -214,7 +245,44 @@ export async function createDeliveryBooking(
     const user = await currentUser()
     if (!user) return { booking: null, error: "Not authenticated." }
 
+    if (!input.pickup?.trim()) {
+      return { booking: null, error: "Please enter a valid pickup address in Butuan City." }
+    }
+    if (!input.destination?.trim()) {
+      return { booking: null, error: "Please enter a valid recipient drop-off address." }
+    }
+    if (!input.senderName?.trim() || !input.senderPhone?.trim()) {
+      return { booking: null, error: "Sender name and phone number are required." }
+    }
+    if (!input.recipientName?.trim() || !input.recipientPhone?.trim()) {
+      return { booking: null, error: "Recipient name and phone number are required." }
+    }
+    if (!input.packageDescription?.trim()) {
+      return { booking: null, error: "Please describe the package contents." }
+    }
+    if (!input.estimatedFare || Number(input.estimatedFare) <= 0) {
+      return { booking: null, error: "Invalid delivery fare calculation. Please verify addresses." }
+    }
+
     const db = createServiceClient()
+
+    // 1. Duplicate check: prevent rapid repeated submissions (< 30 seconds)
+    const thirtySecAgo = new Date(Date.now() - 30 * 1000).toISOString()
+    const { data: duplicate } = await db
+      .from("bookings")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
+      .eq("customer_id", user.id)
+      .eq("service_type", "delivery")
+      .eq("pickup", input.pickup.trim())
+      .eq("destination", input.destination.trim())
+      .eq("status", "pending")
+      .gte("created_at", thirtySecAgo)
+      .maybeSingle()
+
+    if (duplicate) {
+      console.warn(`[createDeliveryBooking] Duplicate delivery submission detected, returning existing booking ${duplicate.reference}.`)
+      return { booking: duplicate as Booking, error: null }
+    }
 
     const customerName =
       user.fullName ||
@@ -224,10 +292,10 @@ export async function createDeliveryBooking(
     const customerEmail = user.emailAddresses[0]?.emailAddress || ""
 
     const deliveryNotes = [
-      `Sender: ${input.senderName} (${input.senderPhone})`,
-      `Recipient: ${input.recipientName} (${input.recipientPhone})`,
-      `Item: ${input.packageDescription} [Type: ${input.packageType}, Tier: ${input.sizeTier}${input.isFragile ? ", FRAGILE" : ""}]`,
-      input.notes ? `Instructions: ${input.notes}` : "",
+      `Sender: ${input.senderName.trim()} (${input.senderPhone.trim()})`,
+      `Recipient: ${input.recipientName.trim()} (${input.recipientPhone.trim()})`,
+      `Item: ${input.packageDescription.trim()} [Type: ${input.packageType}, Tier: ${input.sizeTier}${input.isFragile ? ", FRAGILE" : ""}]`,
+      input.notes ? `Instructions: ${input.notes.trim()}` : "",
     ]
       .filter(Boolean)
       .join(" • ")
@@ -248,9 +316,9 @@ export async function createDeliveryBooking(
         customer_email: customerEmail,
         service_type: "delivery",
         vehicle_category: "motorcycle",
-        pickup: input.pickup,
-        destination: input.destination,
-        scheduled_at: input.scheduledAt,
+        pickup: input.pickup.trim(),
+        destination: input.destination.trim(),
+        scheduled_at: input.scheduledAt || new Date().toISOString(),
         passengers: 0,
         payment_mode: "cash",
         estimated_fare: input.estimatedFare,
@@ -258,7 +326,7 @@ export async function createDeliveryBooking(
         status: "pending",
         rider_id: null,
       })
-      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
       .single()
 
     if (error) {
@@ -300,6 +368,16 @@ export async function createRentalBooking(
     const user = await currentUser()
     if (!user) return { booking: null, error: "Not authenticated." }
 
+    if (!input.pickupLocation?.trim()) {
+      return { booking: null, error: "Please enter a valid pickup location." }
+    }
+    if (!input.handoverLocation?.trim()) {
+      return { booking: null, error: "Please enter a valid handover destination." }
+    }
+    if (!input.pricePerDay || input.pricePerDay <= 0 || !input.estimatedTotal || input.estimatedTotal <= 0) {
+      return { booking: null, error: "Invalid rental pricing details." }
+    }
+
     const db = createServiceClient()
 
     const customerName =
@@ -313,7 +391,7 @@ export async function createRentalBooking(
     const start = new Date(input.startDate)
     const end = new Date(input.endDate)
     if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
-      return { booking: null, error: "Invalid rental duration dates." }
+      return { booking: null, error: "Invalid rental duration dates. End date must be on or after start date." }
     }
 
     // Resolve listingId
@@ -322,6 +400,23 @@ export async function createRentalBooking(
       const { MOCK_BUTUAN_RENTAL_LISTINGS } = await import("@/lib/mock-data/butuan-rental-listings")
       const matched = MOCK_BUTUAN_RENTAL_LISTINGS.find((l) => l.title === input.itemTitle)
       listingId = matched ? matched.id : "rent_btn_01"
+    }
+
+    // 1. Duplicate check: prevent rapid repeated submissions (< 30 seconds)
+    const thirtySecAgo = new Date(Date.now() - 30 * 1000).toISOString()
+    const { data: duplicate } = await db
+      .from("bookings")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
+      .eq("customer_id", user.id)
+      .eq("service_type", "rental")
+      .eq("pickup", input.pickupLocation.trim())
+      .eq("status", "pending")
+      .gte("created_at", thirtySecAgo)
+      .maybeSingle()
+
+    if (duplicate) {
+      console.warn(`[createRentalBooking] Duplicate rental reservation detected, returning existing booking ${duplicate.reference}.`)
+      return { booking: duplicate as Booking, error: null }
     }
 
     // Concurrency-safe atomic unit allocation check
@@ -362,7 +457,7 @@ export async function createRentalBooking(
       `Rate: ₱${input.pricePerDay}/day`,
       `Deposit: ₱${input.securityDeposit}`,
       `Handover Location: ${input.handoverLocation}`,
-      input.notes ? `Customer Notes: ${input.notes}` : "",
+      input.notes ? `Customer Notes: ${input.notes.trim()}` : "",
     ]
       .filter(Boolean)
       .join(" • ")
@@ -373,9 +468,9 @@ export async function createRentalBooking(
       customer_name: customerName,
       customer_email: customerEmail,
       service_type: "rental",
-      vehicle_category: input.category,
-      pickup: input.pickupLocation,
-      destination: input.handoverLocation,
+      vehicle_category: input.category || "vehicle",
+      pickup: input.pickupLocation.trim(),
+      destination: input.handoverLocation.trim(),
       scheduled_at: start.toISOString(),
       passengers: 1,
       payment_mode: "cash",
@@ -392,7 +487,7 @@ export async function createRentalBooking(
     let { data, error } = await db
       .from("bookings")
       .insert(insertPayload)
-      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
       .single()
 
     if (error && (error.message?.includes("column") || error.code === "PGRST204")) {
@@ -404,7 +499,7 @@ export async function createRentalBooking(
       const retryRes = await db
         .from("bookings")
         .insert(insertPayload)
-        .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
+        .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
         .single()
 
       data = retryRes.data
@@ -852,45 +947,162 @@ export async function acceptBookingByRider(
 export async function updateBookingStatus(
   bookingId: string,
   newStatus: BookingStatus
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; booking?: Booking }> {
   try {
-    const rider = await getRiderRecord()
-    if (!rider) return { error: "Not a registered rider." }
+    const user = await currentUser()
+    if (!user) return { error: "Not authenticated. Please log in." }
 
+    const role = await getCurrentUserRole()
     const db = createServiceClient()
 
-    // Verify rider owns this booking
-    const { data: booking } = await db
+    // Retrieve current booking
+    const { data: booking, error: fetchErr } = await db
       .from("bookings")
-      .select("rider_id, status")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
       .eq("id", bookingId)
-      .single()
+      .maybeSingle()
 
-    if (!booking) return { error: "Booking not found." }
-    if (booking.rider_id !== rider.id) return { error: "Unauthorized." }
+    if (fetchErr || !booking) return { error: "Booking not found." }
 
-    const allowedTransitions: Record<string, BookingStatus[]> = {
-      assigned:    ["accepted", "cancelled"],
-      accepted:    ["in_progress", "cancelled"],
-      in_progress: ["completed"],
+    // Concurrency/State-machine validation based on current status and actor role
+    const currentStatus = booking.status as BookingStatus
+    if (currentStatus === newStatus) {
+      return { error: null, booking: booking as Booking }
     }
 
-    if (!allowedTransitions[booking.status]?.includes(newStatus)) {
-      return { error: `Cannot transition from ${booking.status} to ${newStatus}.` }
+    if (currentStatus === "completed" || currentStatus === "cancelled") {
+      return { error: `Booking has already been ${currentStatus} and cannot be modified.` }
     }
 
-    const { error } = await db
-      .from("bookings")
-      .update({ status: newStatus })
-      .eq("id", bookingId)
+    // Role authorization check
+    if (role === "rider") {
+      const rider = await getRiderRecord()
+      if (!rider || booking.rider_id !== rider.id) {
+        return { error: "Unauthorized: This booking is not assigned to your rider account." }
+      }
 
-    if (error) return { error: error.message }
+      const riderAllowedTransitions: Record<string, BookingStatus[]> = {
+        assigned: ["accepted", "cancelled"],
+        accepted: ["in_progress", "cancelled"],
+        in_progress: ["completed"],
+      }
+
+      if (!riderAllowedTransitions[currentStatus]?.includes(newStatus)) {
+        return { error: `Invalid transition from ${currentStatus} to ${newStatus} for riders.` }
+      }
+    } else if (role === "provider") {
+      if (booking.service_type !== "rental") {
+        return { error: "Providers may only manage rental service bookings." }
+      }
+
+      const provider = await getProviderRecord()
+      if (!provider) {
+        return { error: "Unauthorized: Active, verified provider account required." }
+      }
+
+      const providerAllowedTransitions: Record<string, BookingStatus[]> = {
+        pending: ["accepted", "cancelled"],
+        assigned: ["accepted", "cancelled"],
+        accepted: ["in_progress", "cancelled"],
+        in_progress: ["completed"],
+      }
+
+      if (!providerAllowedTransitions[currentStatus]?.includes(newStatus)) {
+        return { error: `Invalid transition from ${currentStatus} to ${newStatus} for rental providers.` }
+      }
+    } else if (role === "admin") {
+      const adminAllowedTransitions: Record<string, BookingStatus[]> = {
+        pending: ["assigned", "accepted", "cancelled"],
+        assigned: ["accepted", "cancelled"],
+        accepted: ["in_progress", "cancelled"],
+        in_progress: ["completed", "cancelled"],
+      }
+
+      if (!adminAllowedTransitions[currentStatus]?.includes(newStatus)) {
+        return { error: `Invalid transition from ${currentStatus} to ${newStatus}.` }
+      }
+    } else {
+      return { error: "Unauthorized to update booking status." }
+    }
+
+    // Atomic update with optimistic concurrency control (.eq("status", currentStatus))
+    const { data: updated, error: updateErr } = await db
+      .from("bookings")
+      .update({
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", bookingId)
+      .eq("status", currentStatus)
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .maybeSingle()
+
+    if (updateErr) {
+      return { error: updateErr.message }
+    }
+
+    if (!updated) {
+      return { error: "Conflict: Booking status was updated by another process. Please refresh." }
+    }
+
+    // If rental vehicle completed or cancelled, release unit if unit_id is present
+    if (booking.service_type === "rental" && (newStatus === "completed" || newStatus === "cancelled")) {
+      if (booking.unit_id) {
+        try {
+          await db
+            .from("rental_units")
+            .update({ status: "available" })
+            .eq("id", booking.unit_id)
+        } catch {}
+      }
+    }
+
+    // Send notification to customer
+    if (booking.customer_id) {
+      const statusTitles: Record<BookingStatus, string> = {
+        pending: `Booking ${booking.reference} Submitted`,
+        assigned: `Rider Assigned: ${booking.reference}`,
+        accepted: booking.service_type === "rental"
+          ? `Rental Confirmed: ${booking.reference}`
+          : `Booking Accepted: ${booking.reference}`,
+        in_progress: booking.service_type === "rental"
+          ? `Vehicle Handed Over: ${booking.reference}`
+          : `Trip In Progress: ${booking.reference}`,
+        completed: `Booking Completed: ${booking.reference}`,
+        cancelled: `Booking Cancelled: ${booking.reference}`,
+      }
+
+      const statusMessages: Record<BookingStatus, string> = {
+        pending: `Your ${booking.service_type} request is pending dispatch.`,
+        assigned: `A driver has been assigned to your ${booking.service_type} request.`,
+        accepted: booking.service_type === "rental"
+          ? `Your rental request for ${booking.vehicle_category || "vehicle"} has been confirmed by the provider.`
+          : `A rider has accepted your ${booking.service_type} booking.`,
+        in_progress: booking.service_type === "rental"
+          ? `Your rental period is now active following vehicle handover.`
+          : `Your ${booking.service_type} is now in progress.`,
+        completed: `Your ${booking.service_type} booking has been completed. Thank you for choosing HitsNaGo!`,
+        cancelled: `Your ${booking.service_type} booking has been cancelled.`,
+      }
+
+      await sendSystemNotification({
+        userId: booking.customer_id,
+        userRole: "customer",
+        type: "booking",
+        serviceType: booking.service_type,
+        bookingId: booking.id,
+        title: statusTitles[newStatus] || `Booking Update: ${booking.reference}`,
+        message: statusMessages[newStatus] || `Your booking status changed to ${newStatus}.`,
+        actionUrl: "/dashboard/customer/bookings",
+      })
+    }
 
     revalidatePath("/dashboard/rider")
+    revalidatePath("/dashboard/provider")
     revalidatePath("/dashboard/customer/bookings")
     revalidatePath("/dashboard/admin/bookings")
 
-    return { error: null }
+    return { error: null, booking: updated as Booking }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to update booking status."
     console.error("[updateBookingStatus] Exception:", err)

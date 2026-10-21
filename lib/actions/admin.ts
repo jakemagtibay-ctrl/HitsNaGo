@@ -503,3 +503,178 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardMetrics> {
     }
   }
 }
+
+export interface FinancialReportData {
+  totalRevenue: number
+  totalBookings: number
+  completedRides: number
+  rentalTransactions: number
+  deliveries: number
+  cancellations: number
+  disputes: number
+  chartData: { label: string; value: number }[]
+  bookings: {
+    id: string
+    reference: string
+    service_type: string
+    customer_name: string
+    customer_email: string
+    pickup: string
+    destination: string | null
+    scheduled_at: string
+    status: string
+    estimated_fare: number
+    created_at: string
+  }[]
+}
+
+export async function getAdminFinancialReport(
+  timeframe: "today" | "7d" | "30d" | "3m" = "30d"
+): Promise<FinancialReportData> {
+  const empty: FinancialReportData = {
+    totalRevenue: 0,
+    totalBookings: 0,
+    completedRides: 0,
+    rentalTransactions: 0,
+    deliveries: 0,
+    cancellations: 0,
+    disputes: 0,
+    chartData: [],
+    bookings: [],
+  }
+
+  try {
+    const db = createServiceClient()
+    const now = new Date()
+    let startDate: Date
+
+    if (timeframe === "today") {
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+    } else if (timeframe === "7d") {
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    } else if (timeframe === "3m") {
+      startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+    } else {
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    }
+
+    const { data: rows, error } = await db
+      .from("bookings")
+      .select("id, reference, service_type, customer_name, customer_email, pickup, destination, scheduled_at, status, estimated_fare, created_at")
+      .gte("created_at", startDate.toISOString())
+      .order("created_at", { ascending: false })
+
+    if (error || !rows) {
+      console.error("[getAdminFinancialReport] Query error:", error)
+      return empty
+    }
+
+    let totalRevenue = 0
+    let completedRides = 0
+    let rentalTransactions = 0
+    let deliveries = 0
+    let cancellations = 0
+
+    rows.forEach((b) => {
+      const fare = Number(b.estimated_fare) || 0
+      if (b.status === "completed") {
+        totalRevenue += fare
+        if (b.service_type === "ride") completedRides++
+        else if (b.service_type === "rental") rentalTransactions++
+        else if (b.service_type === "delivery") deliveries++
+      } else if (b.status === "cancelled") {
+        cancellations++
+      }
+    })
+
+    // Compute chartData based on timeframe
+    let chartData: { label: string; value: number }[] = []
+    if (timeframe === "today") {
+      const buckets: Record<string, number> = {
+        "8 AM": 0, "10 AM": 0, "12 PM": 0, "2 PM": 0, "4 PM": 0, "6 PM": 0, "8 PM": 0,
+      }
+      rows.forEach((b) => {
+        if (b.status === "completed") {
+          const hour = new Date(b.created_at).getHours()
+          const label = hour < 10 ? "8 AM" : hour < 12 ? "10 AM" : hour < 14 ? "12 PM" : hour < 16 ? "2 PM" : hour < 18 ? "4 PM" : hour < 20 ? "6 PM" : "8 PM"
+          buckets[label] = (buckets[label] || 0) + (Number(b.estimated_fare) || 0)
+        }
+      })
+      chartData = Object.entries(buckets).map(([label, value]) => ({ label, value }))
+    } else if (timeframe === "7d") {
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+      const buckets: Record<string, number> = {}
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
+        buckets[dayNames[d.getDay()]] = 0
+      }
+      rows.forEach((b) => {
+        if (b.status === "completed") {
+          const day = dayNames[new Date(b.created_at).getDay()]
+          if (buckets[day] !== undefined) {
+            buckets[day] += Number(b.estimated_fare) || 0
+          }
+        }
+      })
+      chartData = Object.entries(buckets).map(([label, value]) => ({ label, value }))
+    } else if (timeframe === "3m") {
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+      const buckets: Record<string, number> = {}
+      for (let i = 2; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        buckets[monthNames[d.getMonth()]] = 0
+      }
+      rows.forEach((b) => {
+        if (b.status === "completed") {
+          const m = monthNames[new Date(b.created_at).getMonth()]
+          if (buckets[m] !== undefined) {
+            buckets[m] += Number(b.estimated_fare) || 0
+          }
+        }
+      })
+      chartData = Object.entries(buckets).map(([label, value]) => ({ label, value }))
+    } else {
+      const buckets = { "Week 1": 0, "Week 2": 0, "Week 3": 0, "Week 4": 0 }
+      const dayMs = 24 * 60 * 60 * 1000
+      rows.forEach((b) => {
+        if (b.status === "completed") {
+          const diffDays = Math.floor((now.getTime() - new Date(b.created_at).getTime()) / dayMs)
+          const fare = Number(b.estimated_fare) || 0
+          if (diffDays <= 7) buckets["Week 4"] += fare
+          else if (diffDays <= 14) buckets["Week 3"] += fare
+          else if (diffDays <= 21) buckets["Week 2"] += fare
+          else buckets["Week 1"] += fare
+        }
+      })
+      chartData = Object.entries(buckets).map(([label, value]) => ({ label, value }))
+    }
+
+    return {
+      totalRevenue,
+      totalBookings: rows.length,
+      completedRides,
+      rentalTransactions,
+      deliveries,
+      cancellations,
+      disputes: 0,
+      chartData,
+      bookings: rows.map((r) => ({
+        id: r.id,
+        reference: r.reference,
+        service_type: r.service_type,
+        customer_name: r.customer_name,
+        customer_email: r.customer_email,
+        pickup: r.pickup,
+        destination: r.destination,
+        scheduled_at: r.scheduled_at,
+        status: r.status,
+        estimated_fare: Number(r.estimated_fare) || 0,
+        created_at: r.created_at,
+      })),
+    }
+  } catch (err) {
+    console.error("[getAdminFinancialReport] Exception:", err)
+    return empty
+  }
+}
+
