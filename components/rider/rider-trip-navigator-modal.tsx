@@ -172,9 +172,9 @@ export function RiderTripNavigatorModal({
     // 1. Pickup marker
     list.push({
       id: "pickup",
-      title: "Customer Pickup Point",
-      description: booking.pickup,
-      address: booking.pickup,
+      title: geo.pickupPlaceName || "Customer Pickup Point",
+      description: geo.pickupDetails ? `${geo.pickupAddress} • Directions: ${geo.pickupDetails}` : geo.pickupAddress,
+      address: geo.pickupAddress,
       lat: pickupCoords.lat,
       lng: pickupCoords.lng,
       category: "pickup",
@@ -185,9 +185,9 @@ export function RiderTripNavigatorModal({
     if (destCoords && booking.destination) {
       list.push({
         id: "dropoff",
-        title: "Trip Destination",
-        description: booking.destination,
-        address: booking.destination,
+        title: geo.destPlaceName || "Trip Destination",
+        description: geo.destDetails ? `${geo.destAddress || booking.destination} • Directions: ${geo.destDetails}` : (geo.destAddress || booking.destination),
+        address: geo.destAddress || booking.destination,
         lat: destCoords.lat,
         lng: destCoords.lng,
         category: "destination",
@@ -396,17 +396,23 @@ export function RiderTripNavigatorModal({
               {booking.status === "assigned" || booking.status === "accepted" ? (
                 <div className="flex items-start gap-2 text-emerald-600 dark:text-emerald-400">
                   <HugeiconsIcon icon={PinLocation01Icon} size={16} className="shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-foreground block">Customer Pickup Point</span>
-                    <span className="text-muted-foreground text-[11px]">{booking.pickup}</span>
+                  <div className="min-w-0 flex-1">
+                    <span className="font-bold text-foreground block truncate">{geo.pickupPlaceName || "Customer Pickup Point"}</span>
+                    <span className="text-muted-foreground text-[11px] block leading-snug">{geo.pickupAddress}</span>
+                    {geo.pickupDetails && (
+                      <span className="text-primary font-medium text-[10px] block mt-0.5">Directions: {geo.pickupDetails}</span>
+                    )}
                   </div>
                 </div>
               ) : (
                 <div className="flex items-start gap-2 text-amber-600 dark:text-amber-400">
                   <HugeiconsIcon icon={PinLocation01Icon} size={16} className="shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-foreground block">Trip Destination / Dropoff</span>
-                    <span className="text-muted-foreground text-[11px]">{booking.destination || "Destination"}</span>
+                  <div className="min-w-0 flex-1">
+                    <span className="font-bold text-foreground block truncate">{geo.destPlaceName || "Trip Destination / Dropoff"}</span>
+                    <span className="text-muted-foreground text-[11px] block leading-snug">{geo.destAddress || booking.destination}</span>
+                    {geo.destDetails && (
+                      <span className="text-primary font-medium text-[10px] block mt-0.5">Directions: {geo.destDetails}</span>
+                    )}
                   </div>
                 </div>
               )}

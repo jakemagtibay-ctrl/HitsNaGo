@@ -20,6 +20,7 @@ import type { Booking, Rider } from "@/lib/actions/bookings"
 import { assignRider, getAllBookings, getAvailableRiders } from "@/lib/actions/bookings"
 import { getBookingIncidents } from "@/lib/actions/cancellations"
 import { getOrCreateBookingConversation } from "@/lib/actions/messaging"
+import { parseBookingGeo } from "@/lib/maps/geocode"
 import {
   parseBookingCancellationInfo,
   type BookingIncident,
@@ -367,6 +368,7 @@ export function AdminBookingsTable({
               ) : (
                 filteredBookings.map((b) => {
                   const parsed = parseBookingCancellationInfo(b.notes)
+                  const geo = parseBookingGeo(b)
                   const incident = incidentsByBookingId.get(b.id)
                   const isCancelled = b.status === "cancelled"
                   const hasEmergency = Boolean(parsed.emergency || incident?.incident_type === "emergency_report")
@@ -410,12 +412,22 @@ export function AdminBookingsTable({
                       <td className="py-3 px-4 text-muted-foreground w-[190px] align-top">
                         <div className="w-full max-w-full min-w-0 overflow-hidden flex items-start gap-1.5">
                           <HugeiconsIcon icon={PinLocation01Icon} size={13} className="shrink-0 text-primary mt-0.5" />
-                          <span
-                            className="block truncate text-xs min-w-0 flex-1 font-medium text-foreground leading-snug"
-                            title={b.pickup}
-                          >
-                            {b.pickup}
-                          </span>
+                          <div className="min-w-0 flex-1 flex flex-col">
+                            <span
+                              className="block truncate text-xs font-semibold text-foreground leading-snug"
+                              title={b.pickup}
+                            >
+                              {geo.pickupPlaceName || b.pickup}
+                            </span>
+                            {geo.pickupAddress && geo.pickupAddress !== geo.pickupPlaceName && (
+                              <span
+                                className="block truncate text-[10px] text-muted-foreground/80 leading-tight"
+                                title={b.pickup}
+                              >
+                                {geo.pickupAddress}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
 
@@ -430,15 +442,25 @@ export function AdminBookingsTable({
                               b.destination ? "text-rose-500/80" : "text-muted-foreground/35"
                             )}
                           />
-                          <span
-                            className={cn(
-                              "block truncate text-xs min-w-0 flex-1 leading-snug",
-                              b.destination ? "text-foreground font-medium" : "text-muted-foreground/60 italic"
+                          <div className="min-w-0 flex-1 flex flex-col">
+                            <span
+                              className={cn(
+                                "block truncate text-xs font-semibold leading-snug",
+                                b.destination ? "text-foreground" : "text-muted-foreground/60 italic font-normal"
+                              )}
+                              title={b.destination ? b.destination : "No destination specified (Open Point / Rental)"}
+                            >
+                              {b.destination ? (geo.destPlaceName || b.destination) : "—"}
+                            </span>
+                            {b.destination && geo.destAddress && geo.destAddress !== geo.destPlaceName && (
+                              <span
+                                className="block truncate text-[10px] text-muted-foreground/80 leading-tight"
+                                title={b.destination}
+                              >
+                                {geo.destAddress}
+                              </span>
                             )}
-                            title={b.destination ? b.destination : "No destination specified (Open Point / Rental)"}
-                          >
-                            {b.destination || "—"}
-                          </span>
+                          </div>
                         </div>
                       </td>
 
@@ -505,10 +527,21 @@ export function AdminBookingsTable({
                         </div>
                       </td>
 
-                      {/* 8. Fare */}
+                      {/* 8. Fare & Payment */}
                       <td className="py-3 px-4 font-mono font-bold text-foreground w-[90px] align-top">
                         <div className="w-full max-w-full min-w-0 overflow-hidden whitespace-nowrap">
                           ₱{Number(b.estimated_fare).toLocaleString("en-PH")}
+                        </div>
+                        <div className="mt-1">
+                          {(b as any).payment_status === "paid" ? (
+                            <span className="inline-block text-[9px] font-sans font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                              ✓ Paid (Cash)
+                            </span>
+                          ) : (
+                            <span className="inline-block text-[9px] font-sans font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                              Pending (Cash)
+                            </span>
+                          )}
                         </div>
                       </td>
 

@@ -16,6 +16,9 @@ import {
 import { searchAddress, reverseGeocode, type GeocodeResult } from "@/lib/maps/geocode"
 import { BUTUAN_PRESET_LOCATIONS } from "@/lib/mock-data/butuan-locations"
 import { validateServiceAreaLocation } from "@/lib/config/service-areas"
+import { LocationPickerModal } from "@/components/booking/location-picker-modal"
+import type { LocationData } from "@/types/location"
+import { normalizeLocationData } from "@/types/location"
 import { cn } from "@/lib/utils"
 import type { LocationAddress } from "@/types/service"
 
@@ -31,6 +34,7 @@ export interface LocationFieldProps {
   helperText?: string
   onPinOnMapClick?: () => void
   isPinningOnMap?: boolean
+  roleType?: "pickup" | "destination" | "general"
 }
 
 export function LocationField({
@@ -45,6 +49,7 @@ export function LocationField({
   helperText,
   onPinOnMapClick,
   isPinningOnMap,
+  roleType = "pickup",
 }: LocationFieldProps) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
@@ -53,13 +58,16 @@ export function LocationField({
   const [isLocating, setIsLocating] = React.useState(false)
   const [serviceAreaWarning, setServiceAreaWarning] = React.useState<string | null>(null)
   const [geocodeNotFound, setGeocodeNotFound] = React.useState(false)
+  const [isModalOpen, setIsModalOpen] = React.useState(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
   const abortControllerRef = React.useRef<AbortController | null>(null)
 
   // Default quick recommendations when input is empty
   const defaultRecommendations: GeocodeResult[] = React.useMemo(() => {
-    return BUTUAN_PRESET_LOCATIONS.slice(0, 5).map((p) => ({
+    return BUTUAN_PRESET_LOCATIONS.slice(0, 6).map((p) => ({
       id: `rec-${p.id}`,
+      placeName: p.name,
+      formattedAddress: p.address.formattedAddress || p.address.address,
       displayName: `${p.name}, Brgy. ${p.barangay}, Butuan City`,
       title: p.name,
       lat: p.address.coordinates.lat,
@@ -119,7 +127,7 @@ export function LocationField({
           setIsSearching(false)
         }
       }
-    }, 350)
+    }, 300)
 
     return () => {
       clearTimeout(timer)
@@ -144,16 +152,22 @@ export function LocationField({
   // Handle selection of a geocoded suggestion
   const handleSelectSuggestion = (item: GeocodeResult) => {
     const locAddress: LocationAddress = {
-      title: item.title || item.displayName.split(",")[0].trim(),
-      address: item.address || item.displayName,
+      title: item.placeName || item.title,
+      placeName: item.placeName || item.title,
+      address: item.formattedAddress || item.address || item.displayName,
+      formattedAddress: item.formattedAddress || item.address || item.displayName,
       landmark: item.barangay ? `Brgy. ${item.barangay}` : undefined,
+      barangay: item.barangay,
       city: item.city || "Butuan City",
       province: item.province || "Agusan del Norte",
-      postalCode: "8600",
+      country: item.country || "Philippines",
+      postalCode: item.postalCode || "8600",
+      providerPlaceId: item.providerPlaceId || item.id,
       coordinates: {
         lat: item.lat,
         lng: item.lng,
       },
+      isVerifiedPreset: Boolean(item.isPreset),
     }
 
     onChange(locAddress)
@@ -179,13 +193,19 @@ export function LocationField({
         try {
           const rev = await reverseGeocode(lat, lng)
           const locAddress: LocationAddress = {
-            title: rev.title || "My Current Location",
-            address: rev.address,
+            title: rev.placeName || rev.title || "My Current Location",
+            placeName: rev.placeName || rev.title || "My Current Location",
+            address: rev.formattedAddress || rev.address,
+            formattedAddress: rev.formattedAddress || rev.address,
             landmark: rev.barangay ? `Brgy. ${rev.barangay}` : undefined,
+            barangay: rev.barangay,
             city: rev.city || "Butuan City",
             province: rev.province || "Agusan del Norte",
+            country: rev.country || "Philippines",
             postalCode: rev.postalCode || "8600",
+            providerPlaceId: rev.providerPlaceId,
             coordinates: { lat, lng },
+            isVerifiedPreset: rev.isVerifiedPreset,
           }
           onChange(locAddress)
           setQuery("")
@@ -194,7 +214,9 @@ export function LocationField({
         } catch {
           onChange({
             title: "My Current Location",
+            placeName: "My Current Location",
             address: `Current GPS Location (${lat.toFixed(5)}, ${lng.toFixed(5)})`,
+            formattedAddress: `Current GPS Location at ${lat.toFixed(5)}, ${lng.toFixed(5)}, Butuan City`,
             city: "Butuan City",
             province: "Agusan del Norte",
             postalCode: "8600",
@@ -208,7 +230,7 @@ export function LocationField({
         setIsLocating(false)
         alert(
           err.code === err.PERMISSION_DENIED
-            ? "Location permission was denied. Please allow location access or search an address."
+            ? "Location permission was denied. Please allow location access or pick on map."
             : "Could not retrieve your current location."
         )
       },
@@ -216,14 +238,13 @@ export function LocationField({
     )
   }
 
-  // Handle direct Enter key or confirmation of custom typed text
+  // Handle direct Enter key
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault()
       if (suggestions.length > 0) {
         handleSelectSuggestion(suggestions[0])
       } else if (query.trim().length >= 3) {
-        // Direct geocode lookup
         setIsSearching(true)
         const res = await searchAddress(query)
         setIsSearching(false)
@@ -244,6 +265,40 @@ export function LocationField({
     setGeocodeNotFound(false)
   }
 
+  // Open the interactive map modal
+  const handleOpenPickerModal = () => {
+    setIsOpen(false)
+    setIsModalOpen(true)
+  }
+
+  // Handle confirmed location from modal
+  const handleModalConfirm = (loc: LocationData) => {
+    const locAddress: LocationAddress = {
+      title: loc.placeName,
+      placeName: loc.placeName,
+      address: loc.formattedAddress,
+      formattedAddress: loc.formattedAddress,
+      landmark: loc.barangay ? `Brgy. ${loc.barangay}` : undefined,
+      barangay: loc.barangay,
+      city: loc.city || "Butuan City",
+      province: loc.province || "Agusan del Norte",
+      country: loc.country || "Philippines",
+      postalCode: loc.postalCode || "8600",
+      providerPlaceId: loc.providerPlaceId,
+      addressDetails: loc.addressDetails,
+      coordinates: {
+        lat: loc.latitude,
+        lng: loc.longitude,
+      },
+      isVerifiedPreset: loc.isVerifiedPreset,
+    }
+    onChange(locAddress)
+    setQuery("")
+    setServiceAreaWarning(null)
+  }
+
+  const displayTitle = value?.placeName || value?.title || (value?.address ? value.address.split(",")[0].trim() : "")
+
   return (
     <div className={cn("flex flex-col gap-1.5", className)} ref={containerRef}>
       {/* Label and Actions */}
@@ -254,22 +309,15 @@ export function LocationField({
         </label>
 
         <div className="flex items-center gap-2">
-          {onPinOnMapClick && (
-            <button
-              type="button"
-              onClick={onPinOnMapClick}
-              className={cn(
-                "text-[11px] font-semibold flex items-center gap-1 transition-colors px-2 py-0.5 rounded-md",
-                isPinningOnMap
-                  ? "bg-primary text-primary-foreground shadow-xs animate-pulse"
-                  : "text-primary hover:text-primary/80 hover:bg-primary/10"
-              )}
-              title="Click or drag directly on the map to set exact coordinates"
-            >
-              <HugeiconsIcon icon={Location01Icon} size={12} />
-              <span>{isPinningOnMap ? "Pinning Mode Active" : "Adjust on Map"}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleOpenPickerModal}
+            className="text-[11px] font-semibold flex items-center gap-1 text-primary hover:text-primary/80 hover:bg-primary/10 transition-colors px-2 py-0.5 rounded-md"
+            title="Open interactive MapCN map to search or pin location"
+          >
+            <HugeiconsIcon icon={Location01Icon} size={12} />
+            <span>Map & Search</span>
+          </button>
 
           <span className="text-[10px] font-medium text-muted-foreground hidden sm:inline">
             Butuan City & Caraga
@@ -279,45 +327,51 @@ export function LocationField({
 
       {/* Selected Location View */}
       {value ? (
-        <div className="relative flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 p-3 transition-colors">
-          <div className="flex items-start gap-2.5 overflow-hidden">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+        <div className="relative flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 p-3 transition-colors shadow-xs">
+          <div className="flex items-start gap-2.5 overflow-hidden flex-1">
+            <div className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-lg",
+              roleType === "destination" ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" : "bg-primary/15 text-primary"
+            )}>
               <HugeiconsIcon icon={PinLocation01Icon} size={16} />
             </div>
-            <div className="flex flex-col overflow-hidden">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-heading text-xs font-bold text-foreground truncate">
-                  {value.title || value.address}
+                  {displayTitle}
                 </span>
                 {value.coordinates && (
-                  <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0 border border-border/60">
+                  <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0 border border-border/60">
                     {value.coordinates.lat.toFixed(4)}°N, {value.coordinates.lng.toFixed(4)}°E
                   </span>
                 )}
+                {value.isVerifiedPreset && (
+                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded">
+                    Verified
+                  </span>
+                )}
               </div>
-              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+              <p className="text-[11px] text-muted-foreground truncate mt-0.5" title={value.address}>
                 {value.address}
               </p>
-              {value.landmark && (
-                <span className="text-[10px] text-primary/80 mt-0.5">
-                  {value.landmark}
+              {value.addressDetails && (
+                <span className="text-[10px] text-primary font-medium mt-0.5 truncate">
+                  Note: &quot;{value.addressDetails}&quot;
                 </span>
               )}
             </div>
           </div>
 
           <div className="flex items-center gap-1 shrink-0 ml-2">
-            {onPinOnMapClick && (
-              <button
-                type="button"
-                onClick={onPinOnMapClick}
-                className="flex size-7 items-center justify-center rounded-lg text-primary hover:bg-primary/15 transition-colors"
-                title="Fine-tune position on map"
-                aria-label="Fine-tune position on map"
-              >
-                <HugeiconsIcon icon={Edit01Icon} size={14} />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleOpenPickerModal}
+              className="flex size-7 items-center justify-center rounded-lg text-primary hover:bg-primary/15 transition-colors"
+              title="Fine-tune on map"
+              aria-label="Fine-tune position on map"
+            >
+              <HugeiconsIcon icon={Edit01Icon} size={14} />
+            </button>
             <button
               type="button"
               onClick={handleClear}
@@ -415,15 +469,15 @@ export function LocationField({
                     />
                     <div className="flex flex-col overflow-hidden flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-foreground truncate">
-                          {item.title}
+                        <span className="text-xs font-bold text-foreground truncate">
+                          {item.placeName || item.title}
                         </span>
                         <span className="font-mono text-[9px] text-muted-foreground shrink-0">
                           {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
                         </span>
                       </div>
                       <span className="text-[11px] text-muted-foreground truncate">
-                        {item.address}
+                        {item.formattedAddress || item.address}
                       </span>
                     </div>
                   </button>
@@ -435,35 +489,27 @@ export function LocationField({
                       ? `No exact address match found for "${query}".`
                       : "Type an address, street, or establishment name."}
                   </span>
-                  {onPinOnMapClick && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsOpen(false)
-                        onPinOnMapClick()
-                      }}
-                      className="mx-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 shadow-xs"
-                    >
-                      <HugeiconsIcon icon={Location01Icon} size={14} />
-                      <span>Pin Exact Point on Map</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleOpenPickerModal}
+                    className="mx-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 shadow-xs"
+                  >
+                    <HugeiconsIcon icon={Location01Icon} size={14} />
+                    <span>Pin Exact Point on Map</span>
+                  </button>
                 </div>
               )}
 
               {/* Pin on map CTA footer */}
-              {onPinOnMapClick && suggestions.length > 0 && (
+              {suggestions.length > 0 && (
                 <div className="border-t border-border/60 mt-1 pt-1">
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsOpen(false)
-                      onPinOnMapClick()
-                    }}
+                    onClick={handleOpenPickerModal}
                     className="flex w-full items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
                   >
                     <HugeiconsIcon icon={Location01Icon} size={13} />
-                    <span>Can&apos;t find your exact gate or spot? Pin directly on the map</span>
+                    <span>Can&apos;t find your exact building or spot? Open Map to Pin</span>
                   </button>
                 </div>
               )}
@@ -482,6 +528,33 @@ export function LocationField({
       {!error && !serviceAreaWarning && helperText && (
         <p className="text-[11px] text-muted-foreground">{helperText}</p>
       )}
+
+      {/* Interactive Location Picker Modal */}
+      <LocationPickerModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={handleModalConfirm}
+        initialLocation={
+          value
+            ? {
+                placeName: value.placeName || value.title || value.address,
+                formattedAddress: value.formattedAddress || value.address,
+                latitude: value.coordinates.lat,
+                longitude: value.coordinates.lng,
+                barangay: value.barangay,
+                city: value.city,
+                province: value.province,
+                postalCode: value.postalCode,
+                providerPlaceId: value.providerPlaceId,
+                addressDetails: value.addressDetails,
+                isVerifiedPreset: value.isVerifiedPreset,
+              }
+            : null
+        }
+        title={roleType === "destination" ? "Select Destination on Map" : "Select Pickup Location on Map"}
+        subtitle="Search establishment names or drag the marker to your exact gate or spot in Butuan City."
+        roleType={roleType}
+      />
     </div>
   )
 }

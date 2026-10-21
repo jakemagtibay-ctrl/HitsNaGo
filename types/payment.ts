@@ -1,8 +1,6 @@
-export type PaymentMethod = "cash" | "gcash" | "maya" | "card" | "qrph"
+export type PaymentMethod = "cash"
 
-export type PaymentStatus = "pending" | "paid" | "failed" | "cancelled" | "refunded"
-
-export type PaymentGateway = "cash" | "paymongo" | "manual_bank"
+export type PaymentStatus = "pending" | "paid"
 
 export interface PaymentTransaction {
   id: string
@@ -10,39 +8,30 @@ export interface PaymentTransaction {
   customerId: string
   providerOrRiderId?: string | null
   reference: string
-  gateway: PaymentGateway
-  gatewayTransactionId?: string | null
-  idempotencyKey: string
   amount: number
   currency: string
   paymentMethod: PaymentMethod
   status: PaymentStatus
-  failureReason?: string | null
-  refundAmount?: number | null
-  refundReason?: string | null
-  refundedAt?: string | null
-  metadata?: Record<string, unknown>
+  notes?: string | null
+  paidAt?: string | null
   createdAt: string
   updatedAt: string
-}
-
-export interface PaymentIntentResult {
-  clientKey: string | null
-  paymentIntentId: string | null
-  checkoutUrl?: string | null
-  error: string | null
-  isConfigured: boolean
 }
 
 export interface RecordCashPaymentInput {
   bookingId: string
   amount: number
-  receivedByRole: "rider" | "provider" | "admin"
-  receivedById: string
+  receivedByRole?: "rider" | "provider" | "admin"
+  receivedById?: string
   notes?: string
 }
 
-export interface WebhookVerificationResult {
-  isValid: boolean
-  error?: string
+export interface BookingPaymentSummary {
+  bookingId: string
+  reference: string
+  estimatedFare: number
+  paymentMode: string
+  paymentStatus: PaymentStatus
+  paidAt: string | null
+  transaction: PaymentTransaction | null
 }

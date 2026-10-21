@@ -78,6 +78,14 @@ export interface ButuanCityMapProps {
    */
   selectedLocation?: { lat: number; lng: number; label?: string } | null
   /**
+   * Whether the selected location pin should be draggable by user
+   */
+  draggableSelectedPin?: boolean
+  /**
+   * Callback fired when dragging the selected location pin finishes
+   */
+  onSelectedPinDragEnd?: (coords: { lat: number; lng: number }) => void
+  /**
    * Show map quick controls (e.g. Recenter Butuan, Locate Me)
    */
   showControls?: boolean

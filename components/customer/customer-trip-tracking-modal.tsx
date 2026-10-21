@@ -82,9 +82,9 @@ export function CustomerTripTrackingModal({
 
     list.push({
       id: "pickup",
-      title: "Your Pickup Point",
-      description: booking.pickup,
-      address: booking.pickup,
+      title: geo.pickupPlaceName || "Pickup Point",
+      description: geo.pickupDetails ? `${geo.pickupAddress} • Directions: ${geo.pickupDetails}` : geo.pickupAddress,
+      address: geo.pickupAddress,
       lat: pickupCoords.lat,
       lng: pickupCoords.lng,
       category: "pickup",
@@ -94,9 +94,9 @@ export function CustomerTripTrackingModal({
     if (destCoords && booking.destination) {
       list.push({
         id: "dropoff",
-        title: "Your Destination",
-        description: booking.destination,
-        address: booking.destination,
+        title: geo.destPlaceName || "Destination",
+        description: geo.destDetails ? `${geo.destAddress || booking.destination} • Directions: ${geo.destDetails}` : (geo.destAddress || booking.destination),
+        address: geo.destAddress || booking.destination,
         lat: destCoords.lat,
         lng: destCoords.lng,
         category: "destination",
@@ -105,7 +105,7 @@ export function CustomerTripTrackingModal({
     }
 
     return list
-  }, [booking.pickup, booking.destination, pickupCoords, destCoords])
+  }, [booking.pickup, booking.destination, pickupCoords, destCoords, geo])
 
   const mapRoute: MapRoute | undefined = React.useMemo(() => {
     if (!routeResult) return undefined
@@ -250,18 +250,24 @@ export function CustomerTripTrackingModal({
 
               <div className="flex items-start gap-2">
                 <HugeiconsIcon icon={PinLocation01Icon} size={16} className="text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold text-foreground block">Pickup Location</span>
-                  <span className="text-muted-foreground text-[11px]">{booking.pickup}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="font-bold text-foreground block truncate">{geo.pickupPlaceName || "Pickup Location"}</span>
+                  <span className="text-muted-foreground text-[11px] block leading-snug">{geo.pickupAddress}</span>
+                  {geo.pickupDetails && (
+                    <span className="text-primary font-medium text-[10px] block mt-0.5">Note: {geo.pickupDetails}</span>
+                  )}
                 </div>
               </div>
 
               {booking.destination && (
                 <div className="flex items-start gap-2 pt-2 border-t border-border/50">
                   <HugeiconsIcon icon={PinLocation01Icon} size={16} className="text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-foreground block">Destination</span>
-                    <span className="text-muted-foreground text-[11px]">{booking.destination}</span>
+                  <div className="min-w-0 flex-1">
+                    <span className="font-bold text-foreground block truncate">{geo.destPlaceName || "Destination"}</span>
+                    <span className="text-muted-foreground text-[11px] block leading-snug">{geo.destAddress || booking.destination}</span>
+                    {geo.destDetails && (
+                      <span className="text-primary font-medium text-[10px] block mt-0.5">Note: {geo.destDetails}</span>
+                    )}
                   </div>
                 </div>
               )}

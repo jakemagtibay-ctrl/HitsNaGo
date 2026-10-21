@@ -1,6 +1,6 @@
 -- =============================================================================
--- HitsNaGo Migration 009: Payments, Transactions & PayMongo Architecture
--- Backward-compatible, idempotent migration for cash and gateway payments.
+-- HitsNaGo Migration 009: Cash Payments, Status Tracking & Receipts Architecture
+-- Backward-compatible, idempotent migration for cash payments, receipts, and audit trail.
 -- Run in: Supabase Dashboard > SQL Editor
 -- =============================================================================
 
@@ -11,7 +11,7 @@ ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NUL
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
 
 -- -----------------------------------------------------------------------------
--- 2. CREATE PAYMENT TRANSACTIONS TABLE
+-- 2. CREATE PAYMENT TRANSACTIONS TABLE (Cash Receipts & Audit Trail)
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.payment_transactions (
   id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -19,12 +19,12 @@ CREATE TABLE IF NOT EXISTS public.payment_transactions (
   customer_id             TEXT NOT NULL,
   provider_or_rider_id    UUID,
   reference               TEXT UNIQUE NOT NULL,
-  gateway                 TEXT NOT NULL DEFAULT 'cash' CHECK (gateway IN ('cash', 'paymongo', 'manual_bank')),
+  gateway                 TEXT NOT NULL DEFAULT 'cash',
   gateway_transaction_id  TEXT,
   idempotency_key         TEXT UNIQUE NOT NULL,
   amount                  NUMERIC(10,2) NOT NULL CHECK (amount >= 0),
   currency                TEXT NOT NULL DEFAULT 'PHP',
-  payment_method          TEXT NOT NULL DEFAULT 'cash' CHECK (payment_method IN ('cash', 'gcash', 'maya', 'card', 'qrph')),
+  payment_method          TEXT NOT NULL DEFAULT 'cash',
   status                  TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'failed', 'cancelled', 'refunded')),
   failure_reason          TEXT,
   refund_amount           NUMERIC(10,2) CHECK (refund_amount >= 0),
@@ -42,10 +42,19 @@ CREATE INDEX IF NOT EXISTS idx_payment_tx_booking_id ON public.payment_transacti
 CREATE INDEX IF NOT EXISTS idx_payment_tx_customer_id ON public.payment_transactions(customer_id);
 CREATE INDEX IF NOT EXISTS idx_payment_tx_idempotency ON public.payment_transactions(idempotency_key);
 CREATE INDEX IF NOT EXISTS idx_payment_tx_status ON public.payment_transactions(status);
-CREATE INDEX IF NOT EXISTS idx_payment_tx_gateway_id ON public.payment_transactions(gateway_transaction_id);
 
 -- -----------------------------------------------------------------------------
--- 4. ROW LEVEL SECURITY (RLS) POLICIES
+-- 4. UPDATED_AT TRIGGER
+-- -----------------------------------------------------------------------------
+DO $$ BEGIN
+  CREATE TRIGGER set_payment_transactions_updated_at
+    BEFORE UPDATE ON public.payment_transactions
+    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- -----------------------------------------------------------------------------
+-- 5. ROW LEVEL SECURITY (RLS) POLICIES
 -- -----------------------------------------------------------------------------
 ALTER TABLE public.payment_transactions ENABLE ROW LEVEL SECURITY;
 

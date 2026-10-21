@@ -14,6 +14,7 @@ import {
   Cancel01Icon,
   Alert01Icon,
   Mail01Icon,
+  Coins01Icon,
 } from "@hugeicons/core-free-icons"
 import { BookingStatusBadge } from "@/components/dashboard/status-badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -21,9 +22,11 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { CancelBookingDialog } from "@/components/booking/cancel-booking-dialog"
 import { EmergencyReportDialog } from "@/components/booking/emergency-report-dialog"
 import { CustomerTripTrackingModal } from "@/components/customer/customer-trip-tracking-modal"
+import { CustomerPaymentDialog } from "@/components/booking/customer-payment-dialog"
 import { parseBookingCancellationInfo } from "@/lib/cancellations/metadata"
 import { cn } from "@/lib/utils"
 import type { Booking } from "@/lib/actions/bookings"
+import { parseBookingGeo } from "@/lib/maps/geocode"
 import { VerifiedBadge } from "@/components/common/verified-badge"
 
 interface CustomerBookingsViewProps {
@@ -36,6 +39,7 @@ export function CustomerBookingsView({ initialBookings }: CustomerBookingsViewPr
   const [cancellingBooking, setCancellingBooking] = React.useState<Booking | null>(null)
   const [emergencyBooking, setEmergencyBooking] = React.useState<Booking | null>(null)
   const [trackingBooking, setTrackingBooking] = React.useState<Booking | null>(null)
+  const [paymentBooking, setPaymentBooking] = React.useState<Booking | null>(null)
 
   const [prevInitialBookings, setPrevInitialBookings] = React.useState(initialBookings)
 
@@ -72,6 +76,7 @@ export function CustomerBookingsView({ initialBookings }: CustomerBookingsViewPr
             const isCancellable = ["pending", "assigned", "accepted"].includes(booking.status)
             const isInProgress = booking.status === "in_progress"
             const { cleanNotes, cancellation, emergency } = parseBookingCancellationInfo(booking.notes)
+            const geo = parseBookingGeo(booking)
 
             return (
               <Card key={booking.id} className="border-border/80 bg-card shadow-xs hover:border-primary/30 transition-colors">
@@ -99,15 +104,31 @@ export function CustomerBookingsView({ initialBookings }: CustomerBookingsViewPr
                   </div>
 
                   {/* Route */}
-                  <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+                  <div className="flex flex-col gap-2 text-xs text-muted-foreground">
                     <div className="flex items-start gap-2">
-                      <HugeiconsIcon icon={PinLocation01Icon} size={13} className="text-primary shrink-0 mt-0.5" />
-                      <span>Pickup: <strong className="text-foreground">{booking.pickup}</strong></span>
+                      <HugeiconsIcon icon={PinLocation01Icon} size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                      <div className="flex flex-col">
+                        <span>Pickup: <strong className="text-foreground">{geo.pickupPlaceName || booking.pickup}</strong></span>
+                        {geo.pickupAddress && geo.pickupAddress !== geo.pickupPlaceName && (
+                          <span className="text-[11px] text-muted-foreground/80">{geo.pickupAddress}</span>
+                        )}
+                        {geo.pickupDetails && (
+                          <span className="text-[11px] text-primary font-medium">📍 Directions: {geo.pickupDetails}</span>
+                        )}
+                      </div>
                     </div>
                     {booking.destination && (
                       <div className="flex items-start gap-2">
-                        <HugeiconsIcon icon={PinLocation01Icon} size={13} className="text-rose-500 shrink-0 mt-0.5" />
-                        <span>Destination: <strong className="text-foreground">{booking.destination}</strong></span>
+                        <HugeiconsIcon icon={PinLocation01Icon} size={14} className="text-rose-500 shrink-0 mt-0.5" />
+                        <div className="flex flex-col">
+                          <span>Destination: <strong className="text-foreground">{geo.destPlaceName || booking.destination}</strong></span>
+                          {geo.destAddress && geo.destAddress !== geo.destPlaceName && (
+                            <span className="text-[11px] text-muted-foreground/80">{geo.destAddress}</span>
+                          )}
+                          {geo.destDetails && (
+                            <span className="text-[11px] text-primary font-medium">📍 Directions: {geo.destDetails}</span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -215,6 +236,25 @@ export function CustomerBookingsView({ initialBookings }: CustomerBookingsViewPr
                         </Button>
                       )}
 
+                      {/* Cash Payment Info / Paid Receipt */}
+                      {booking.status !== "cancelled" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPaymentBooking(booking)}
+                          className={cn(
+                            "h-8 text-xs font-semibold gap-1.5",
+                            (booking as any).payment_status === "paid"
+                              ? "text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                              : "text-foreground border-border hover:bg-muted"
+                          )}
+                        >
+                          <HugeiconsIcon icon={Coins01Icon} size={13} />
+                          <span>{(booking as any).payment_status === "paid" ? "Cash Receipt" : "Cash & Fare Info"}</span>
+                        </Button>
+                      )}
+
 
 
 
@@ -306,6 +346,16 @@ export function CustomerBookingsView({ initialBookings }: CustomerBookingsViewPr
           booking={trackingBooking}
           isOpen={!!trackingBooking}
           onClose={() => setTrackingBooking(null)}
+        />
+      )}
+
+      {/* Customer Payment Dialog */}
+      {paymentBooking && (
+        <CustomerPaymentDialog
+          booking={paymentBooking}
+          isOpen={!!paymentBooking}
+          onClose={() => setPaymentBooking(null)}
+          onSuccess={handleRefresh}
         />
       )}
     </div>

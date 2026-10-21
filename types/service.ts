@@ -1,3 +1,6 @@
+import type { LocationData } from "./location"
+
+export type { LocationData }
 export type ServiceType = "ride" | "rental" | "delivery"
 
 export interface Coordinates {
@@ -8,11 +11,18 @@ export interface Coordinates {
 export interface LocationAddress {
   address: string
   title?: string
+  placeName?: string
+  formattedAddress?: string
   landmark?: string
+  barangay?: string
   coordinates: Coordinates
   city?: string
   province?: string
+  country?: string
   postalCode?: string
+  providerPlaceId?: string
+  addressDetails?: string
+  isVerifiedPreset?: boolean
 }
 
 export interface ServiceCategory {

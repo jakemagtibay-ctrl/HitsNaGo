@@ -19,6 +19,7 @@ import {
   RadioIcon,
   Message01Icon,
   Mail01Icon,
+  Coins01Icon,
 } from "@hugeicons/core-free-icons"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,7 @@ import {
   getRiderBookings,
   updateBookingStatus,
 } from "@/lib/actions/bookings"
+import { recordCashPayment } from "@/lib/actions/payments"
 import { createBrowserClient } from "@/lib/supabase"
 import { resolveButuanCoordinates, parseBookingGeo } from "@/lib/maps/geocode"
 import { getNavigationUrl } from "@/lib/maps/routing"
@@ -65,6 +67,7 @@ export function RiderBookingsView({
 
   const [loadingId, setLoadingId] = React.useState<string | null>(null)
   const [acceptingId, setAcceptingId] = React.useState<string | null>(null)
+  const [loadingPaymentId, setLoadingPaymentId] = React.useState<string | null>(null)
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null)
   const [issueSubmittedMsg, setIssueSubmittedMsg] = React.useState<string | null>(null)
@@ -208,6 +211,34 @@ export function RiderBookingsView({
     )
     setLoadingId(null)
     router.refresh()
+  }
+
+  // Record cash payment collected by rider
+  const handleCollectCash = async (b: Booking) => {
+    setLoadingPaymentId(b.id)
+    setErrorMessage(null)
+    try {
+      const res = await recordCashPayment({
+        bookingId: b.id,
+        amount: Number(b.estimated_fare),
+        notes: `Collected in cash by rider ${rider.name}`,
+      })
+
+      if (res.error) {
+        setErrorMessage(res.error)
+      } else {
+        setBookings((prev) =>
+          prev.map((item) => (item.id === b.id ? ({ ...item, payment_status: "paid" } as any) : item))
+        )
+        setSuccessMessage(`Cash payment of ₱${Number(b.estimated_fare).toLocaleString("en-PH")} confirmed.`)
+        setTimeout(() => setSuccessMessage(null), 5000)
+        router.refresh()
+      }
+    } catch {
+      setErrorMessage("Could not record cash collection.")
+    } finally {
+      setLoadingPaymentId(null)
+    }
   }
 
   const getStatusBadge = (status: BookingStatus) => {
@@ -400,22 +431,34 @@ export function RiderBookingsView({
                       <div className="flex flex-col gap-2 rounded-xl bg-muted/40 p-3 text-xs">
                         <div className="flex items-start gap-2">
                           <HugeiconsIcon icon={PinLocation01Icon} size={15} className="text-emerald-600 shrink-0 mt-0.5" />
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <span className="text-[10px] uppercase font-bold text-muted-foreground block">
                               {booking.service_type === "delivery" ? "Item Pickup Location" : "Passenger Pickup Location"}
                             </span>
-                            <span className="font-semibold text-foreground">{booking.pickup}</span>
+                            <span className="font-bold text-foreground block truncate">{geo.pickupPlaceName || booking.pickup}</span>
+                            {geo.pickupAddress && geo.pickupAddress !== geo.pickupPlaceName && (
+                              <span className="text-[11px] text-muted-foreground block leading-snug">{geo.pickupAddress}</span>
+                            )}
+                            {geo.pickupDetails && (
+                              <span className="text-[11px] text-primary font-medium block mt-0.5">📍 Directions: {geo.pickupDetails}</span>
+                            )}
                           </div>
                         </div>
 
                         {booking.destination && (
                           <div className="flex items-start gap-2 pt-2 border-t border-border/40">
                             <HugeiconsIcon icon={PinLocation01Icon} size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                            <div>
+                            <div className="min-w-0 flex-1">
                               <span className="text-[10px] uppercase font-bold text-muted-foreground block">
                                 {booking.service_type === "delivery" ? "Delivery Destination" : "Dropoff Location"}
                               </span>
-                              <span className="font-semibold text-foreground">{booking.destination}</span>
+                              <span className="font-bold text-foreground block truncate">{geo.destPlaceName || booking.destination}</span>
+                              {geo.destAddress && geo.destAddress !== geo.destPlaceName && (
+                                <span className="text-[11px] text-muted-foreground block leading-snug">{geo.destAddress}</span>
+                              )}
+                              {geo.destDetails && (
+                                <span className="text-[11px] text-primary font-medium block mt-0.5">📍 Directions: {geo.destDetails}</span>
+                              )}
                             </div>
                           </div>
                         )}
@@ -578,21 +621,33 @@ export function RiderBookingsView({
                       <div className="flex flex-col gap-2 rounded-xl bg-muted/40 p-3 text-xs">
                         <div className="flex items-start gap-2">
                           <HugeiconsIcon icon={PinLocation01Icon} size={15} className="text-emerald-600 shrink-0 mt-0.5" />
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <span className="text-[10px] uppercase font-bold text-muted-foreground block">
                               {booking.service_type === "delivery" ? "Item Pickup / Collection" : "Passenger Pickup"}
                             </span>
-                            <span className="font-semibold text-foreground">{booking.pickup}</span>
+                            <span className="font-bold text-foreground block truncate">{geo.pickupPlaceName || booking.pickup}</span>
+                            {geo.pickupAddress && geo.pickupAddress !== geo.pickupPlaceName && (
+                              <span className="text-[11px] text-muted-foreground block leading-snug">{geo.pickupAddress}</span>
+                            )}
+                            {geo.pickupDetails && (
+                              <span className="text-[11px] text-primary font-medium block mt-0.5">📍 Directions: {geo.pickupDetails}</span>
+                            )}
                           </div>
                         </div>
                         {booking.destination && (
                           <div className="flex items-start gap-2 pt-2 border-t border-border/40">
                             <HugeiconsIcon icon={PinLocation01Icon} size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                            <div>
+                            <div className="min-w-0 flex-1">
                               <span className="text-[10px] uppercase font-bold text-muted-foreground block">
                                 {booking.service_type === "delivery" ? "Dropoff Destination" : "Dropoff Location"}
                               </span>
-                              <span className="font-semibold text-foreground">{booking.destination}</span>
+                              <span className="font-bold text-foreground block truncate">{geo.destPlaceName || booking.destination}</span>
+                              {geo.destAddress && geo.destAddress !== geo.destPlaceName && (
+                                <span className="text-[11px] text-muted-foreground block leading-snug">{geo.destAddress}</span>
+                              )}
+                              {geo.destDetails && (
+                                <span className="text-[11px] text-primary font-medium block mt-0.5">📍 Directions: {geo.destDetails}</span>
+                              )}
                             </div>
                           </div>
                         )}
@@ -672,6 +727,38 @@ export function RiderBookingsView({
                           <span className="text-[11px] text-muted-foreground">
                             Platform fee (20%): ₱{platformFee.toLocaleString("en-PH")}
                           </span>
+                        </div>
+
+                        {/* Cash Collection Tracking */}
+                        <div className="flex items-center justify-between text-xs pt-1.5 border-t border-border/40">
+                          <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
+                            <HugeiconsIcon icon={Coins01Icon} size={13} className="text-primary" />
+                            Cash Payment:
+                          </span>
+                          {(booking as any).payment_status === "paid" ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                              <HugeiconsIcon icon={CheckmarkCircle01Icon} size={12} />
+                              Paid ₱{totalFare.toLocaleString("en-PH")}
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                Pending Cash
+                              </span>
+                              {(booking.status === "in_progress" || booking.status === "completed") && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={loadingPaymentId === booking.id}
+                                  onClick={() => handleCollectCash(booking)}
+                                  className="h-6 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 px-2"
+                                >
+                                  {loadingPaymentId === booking.id ? "Recording..." : "Collect Cash"}
+                                </Button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 

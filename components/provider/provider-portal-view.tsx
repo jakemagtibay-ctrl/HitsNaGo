@@ -10,18 +10,20 @@ import {
   PinLocation01Icon,
   Alert01Icon,
   Mail01Icon,
+  Coins01Icon,
 } from "@hugeicons/core-free-icons"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ButuanCityMap } from "@/components/maps/butuan-city-map"
-import { resolveButuanCoordinates } from "@/lib/maps/geocode"
+import { resolveButuanCoordinates, parseBookingGeo } from "@/lib/maps/geocode"
 import { parseBookingCancellationInfo } from "@/lib/cancellations/metadata"
 import { ProviderIncidentDialog } from "@/components/provider/provider-incident-dialog"
 import { ProviderUnitModal } from "@/components/provider/provider-unit-modal"
 import type { MapMarker } from "@/components/maps/types"
 import type { Booking, Provider } from "@/lib/actions/bookings"
 import { updateBookingStatus } from "@/lib/actions/bookings"
+import { recordCashPayment } from "@/lib/actions/payments"
 import type { RentalUnit } from "@/types/rental"
 import type { ButuanRentalItem } from "@/lib/mock-data/butuan-rental-listings"
 
@@ -88,6 +90,7 @@ export function ProviderPortalView({
   const [selectedBookingForIncident, setSelectedBookingForIncident] = React.useState<Booking | null>(null)
   const [isIncidentDialogOpen, setIsIncidentDialogOpen] = React.useState<boolean>(false)
   const [updatingBookingId, setUpdatingBookingId] = React.useState<string | null>(null)
+  const [recordingPaymentId, setRecordingPaymentId] = React.useState<string | null>(null)
 
   const handleUpdateRentalStatus = async (
     bookingId: string,
@@ -113,6 +116,31 @@ export function ProviderPortalView({
       setMessage("Failed to update rental status.")
     } finally {
       setUpdatingBookingId(null)
+      setTimeout(() => setMessage(null), 5000)
+    }
+  }
+
+  const handleRecordProviderCash = async (b: Booking) => {
+    setRecordingPaymentId(b.id)
+    try {
+      const res = await recordCashPayment({
+        bookingId: b.id,
+        amount: Number(b.estimated_fare),
+        notes: `Collected in cash by rental provider ${provider.business_name}`,
+      })
+
+      if (res.error) {
+        setMessage(`Payment Error: ${res.error}`)
+      } else {
+        setBookings((prev) =>
+          prev.map((item) => (item.id === b.id ? ({ ...item, payment_status: "paid" } as any) : item))
+        )
+        setMessage(`Cash payment of ₱${Number(b.estimated_fare).toLocaleString("en-PH")} recorded successfully.`)
+      }
+    } catch {
+      setMessage("Could not record cash payment.")
+    } finally {
+      setRecordingPaymentId(null)
       setTimeout(() => setMessage(null), 5000)
     }
   }
@@ -307,18 +335,39 @@ export function ProviderPortalView({
                         </span>
                       </div>
 
-                      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <HugeiconsIcon icon={PinLocation01Icon} size={13} className="text-primary shrink-0" />
-                          <span className="truncate">Handover: {booking.pickup}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <HugeiconsIcon icon={Calendar01Icon} size={13} className="shrink-0" />
-                          <span>
-                            Scheduled: {new Date(booking.scheduled_at).toLocaleDateString("en-PH", { dateStyle: "medium" })}
-                          </span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const geo = parseBookingGeo(booking)
+                        return (
+                          <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+                            <div className="flex items-start gap-1.5">
+                              <HugeiconsIcon icon={PinLocation01Icon} size={14} className="text-primary shrink-0 mt-0.5" />
+                              <div className="min-w-0 flex-1">
+                                <span className="font-semibold text-foreground block truncate">Pickup: {geo.pickupPlaceName || booking.pickup}</span>
+                                {geo.pickupAddress && geo.pickupAddress !== geo.pickupPlaceName && (
+                                  <span className="text-[11px] text-muted-foreground block truncate">{geo.pickupAddress}</span>
+                                )}
+                              </div>
+                            </div>
+                            {booking.destination && (
+                              <div className="flex items-start gap-1.5">
+                                <HugeiconsIcon icon={PinLocation01Icon} size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <span className="font-semibold text-foreground block truncate">Return: {geo.destPlaceName || booking.destination}</span>
+                                  {geo.destAddress && geo.destAddress !== geo.destPlaceName && (
+                                    <span className="text-[11px] text-muted-foreground block truncate">{geo.destAddress}</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1.5 pt-0.5">
+                              <HugeiconsIcon icon={Calendar01Icon} size={13} className="shrink-0" />
+                              <span>
+                                Scheduled: {new Date(booking.scheduled_at).toLocaleDateString("en-PH", { dateStyle: "medium" })}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })()}
 
                       {/* Notes snippet */}
                       {booking.notes && (
@@ -349,11 +398,39 @@ export function ProviderPortalView({
                     </div>
 
                     <div className="flex items-center justify-between pt-3 border-t border-border/50 text-xs">
-                      <span className="font-mono font-bold text-foreground">
-                        ₱{Number(booking.estimated_fare).toLocaleString("en-PH")}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="font-mono font-bold text-foreground">
+                          ₱{Number(booking.estimated_fare).toLocaleString("en-PH")}
+                        </span>
+                        <div className="mt-0.5">
+                          {(booking as any).payment_status === "paid" ? (
+                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                              ✓ Paid in Cash
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                              Pending Cash
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
                       <div className="flex items-center gap-2 flex-wrap justify-end">
+                        {/* Cash Collection Button for Provider */}
+                        {!(booking as any).payment_status || (booking as any).payment_status !== "paid" ? (
+                          (booking.status === "in_progress" || booking.status === "completed" || booking.status === "accepted") && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs px-2 gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 font-bold"
+                              disabled={recordingPaymentId === booking.id}
+                              onClick={() => handleRecordProviderCash(booking)}
+                            >
+                              <HugeiconsIcon icon={Coins01Icon} size={12} />
+                              {recordingPaymentId === booking.id ? "Recording..." : "Collect Cash"}
+                            </Button>
+                          )
+                        ) : null}
                         <Link
                           href={`/dashboard/provider/inbox?bookingId=${booking.id}`}
                           className="inline-flex items-center justify-center rounded-lg border border-border bg-card px-2.5 h-7 text-xs font-semibold text-foreground hover:bg-muted transition-colors gap-1"

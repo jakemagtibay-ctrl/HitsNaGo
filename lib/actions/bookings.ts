@@ -33,6 +33,19 @@ export interface Booking {
   vehicle_category: string | null
   pickup: string
   destination: string | null
+  pickup_place_name?: string | null
+  pickup_latitude?: number | null
+  pickup_longitude?: number | null
+  pickup_barangay?: string | null
+  pickup_city?: string | null
+  pickup_details?: string | null
+  destination_place_name?: string | null
+  destination_latitude?: number | null
+  destination_longitude?: number | null
+  destination_barangay?: string | null
+  destination_city?: string | null
+  destination_details?: string | null
+  location_metadata?: Record<string, unknown> | null
   scheduled_at: string
   passengers: number
   payment_mode: string
@@ -119,8 +132,16 @@ export interface CreateRideBookingInput {
   estimatedFare: number
   vehicleCategory: string
   notes?: string
+  pickupPlaceName?: string
   pickupCoords?: { lat: number; lng: number }
+  pickupBarangay?: string
+  pickupCity?: string
+  pickupDetails?: string
+  destinationPlaceName?: string
   destinationCoords?: { lat: number; lng: number }
+  destinationBarangay?: string
+  destinationCity?: string
+  destinationDetails?: string
   distanceKm?: number
   durationMin?: number
 }
@@ -175,31 +196,64 @@ export async function createRideBooking(
     const serializedNotes = serializeBookingGeo(input.notes, {
       pickupCoords: input.pickupCoords,
       destinationCoords: input.destinationCoords,
+      pickupPlaceName: input.pickupPlaceName,
+      destPlaceName: input.destinationPlaceName,
+      pickupDetails: input.pickupDetails,
+      destDetails: input.destinationDetails,
       distanceKm: input.distanceKm,
       durationMin: input.durationMin,
     })
 
-    const { data, error } = await db
+    const corePayload = {
+      reference: generateReference(),
+      customer_id: user.id,
+      customer_name: customerName,
+      customer_email: customerEmail,
+      service_type: "ride",
+      vehicle_category: input.vehicleCategory || "motorcycle",
+      pickup: input.pickup.trim(),
+      destination: input.destination.trim(),
+      scheduled_at: input.scheduledAt,
+      passengers: Math.max(1, input.passengers || 1),
+      payment_mode: input.paymentMode || "cash",
+      estimated_fare: input.estimatedFare,
+      notes: serializedNotes,
+      status: "pending",
+      rider_id: null,
+    }
+
+    const extendedPayload: Record<string, unknown> = {
+      ...corePayload,
+      ...(input.pickupPlaceName ? { pickup_place_name: input.pickupPlaceName.trim() } : {}),
+      ...(input.pickupCoords?.lat != null ? { pickup_latitude: input.pickupCoords.lat } : {}),
+      ...(input.pickupCoords?.lng != null ? { pickup_longitude: input.pickupCoords.lng } : {}),
+      ...(input.pickupBarangay ? { pickup_barangay: input.pickupBarangay.trim() } : {}),
+      ...(input.pickupCity ? { pickup_city: input.pickupCity.trim() } : {}),
+      ...(input.pickupDetails ? { pickup_details: input.pickupDetails.trim() } : {}),
+      ...(input.destinationPlaceName ? { destination_place_name: input.destinationPlaceName.trim() } : {}),
+      ...(input.destinationCoords?.lat != null ? { destination_latitude: input.destinationCoords.lat } : {}),
+      ...(input.destinationCoords?.lng != null ? { destination_longitude: input.destinationCoords.lng } : {}),
+      ...(input.destinationBarangay ? { destination_barangay: input.destinationBarangay.trim() } : {}),
+      ...(input.destinationCity ? { destination_city: input.destinationCity.trim() } : {}),
+      ...(input.destinationDetails ? { destination_details: input.destinationDetails.trim() } : {}),
+    }
+
+    let { data, error } = await db
       .from("bookings")
-      .insert({
-        reference: generateReference(),
-        customer_id: user.id,
-        customer_name: customerName,
-        customer_email: customerEmail,
-        service_type: "ride",
-        vehicle_category: input.vehicleCategory || "motorcycle",
-        pickup: input.pickup.trim(),
-        destination: input.destination.trim(),
-        scheduled_at: input.scheduledAt,
-        passengers: Math.max(1, input.passengers || 1),
-        payment_mode: input.paymentMode || "cash",
-        estimated_fare: input.estimatedFare,
-        notes: serializedNotes,
-        status: "pending",
-        rider_id: null,
-      })
+      .insert(extendedPayload)
       .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
       .single()
+
+    // Graceful fallback to core payload if columns don't exist yet in Supabase
+    if (error && error.message?.includes("column")) {
+      const fallback = await db
+        .from("bookings")
+        .insert(corePayload)
+        .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
+        .single()
+      data = fallback.data
+      error = fallback.error
+    }
 
     if (error) {
       console.error("[createRideBooking]", error)
@@ -232,8 +286,16 @@ export interface CreateDeliveryBookingInput {
   isFragile?: boolean
   estimatedFare: number
   notes?: string
+  pickupPlaceName?: string
   pickupCoords?: { lat: number; lng: number }
+  pickupBarangay?: string
+  pickupCity?: string
+  pickupDetails?: string
+  destinationPlaceName?: string
   destinationCoords?: { lat: number; lng: number }
+  destinationBarangay?: string
+  destinationCity?: string
+  destinationDetails?: string
   distanceKm?: number
   durationMin?: number
 }
@@ -303,31 +365,64 @@ export async function createDeliveryBooking(
     const serializedNotes = serializeBookingGeo(deliveryNotes, {
       pickupCoords: input.pickupCoords,
       destinationCoords: input.destinationCoords,
+      pickupPlaceName: input.pickupPlaceName,
+      destPlaceName: input.destinationPlaceName,
+      pickupDetails: input.pickupDetails,
+      destDetails: input.destinationDetails,
       distanceKm: input.distanceKm,
       durationMin: input.durationMin,
     })
 
-    const { data, error } = await db
+    const corePayload = {
+      reference: generateReference(),
+      customer_id: user.id,
+      customer_name: customerName,
+      customer_email: customerEmail,
+      service_type: "delivery",
+      vehicle_category: "motorcycle",
+      pickup: input.pickup.trim(),
+      destination: input.destination.trim(),
+      scheduled_at: input.scheduledAt || new Date().toISOString(),
+      passengers: 0,
+      payment_mode: "cash",
+      estimated_fare: input.estimatedFare,
+      notes: serializedNotes,
+      status: "pending",
+      rider_id: null,
+    }
+
+    const extendedPayload: Record<string, unknown> = {
+      ...corePayload,
+      ...(input.pickupPlaceName ? { pickup_place_name: input.pickupPlaceName.trim() } : {}),
+      ...(input.pickupCoords?.lat != null ? { pickup_latitude: input.pickupCoords.lat } : {}),
+      ...(input.pickupCoords?.lng != null ? { pickup_longitude: input.pickupCoords.lng } : {}),
+      ...(input.pickupBarangay ? { pickup_barangay: input.pickupBarangay.trim() } : {}),
+      ...(input.pickupCity ? { pickup_city: input.pickupCity.trim() } : {}),
+      ...(input.pickupDetails ? { pickup_details: input.pickupDetails.trim() } : {}),
+      ...(input.destinationPlaceName ? { destination_place_name: input.destinationPlaceName.trim() } : {}),
+      ...(input.destinationCoords?.lat != null ? { destination_latitude: input.destinationCoords.lat } : {}),
+      ...(input.destinationCoords?.lng != null ? { destination_longitude: input.destinationCoords.lng } : {}),
+      ...(input.destinationBarangay ? { destination_barangay: input.destinationBarangay.trim() } : {}),
+      ...(input.destinationCity ? { destination_city: input.destinationCity.trim() } : {}),
+      ...(input.destinationDetails ? { destination_details: input.destinationDetails.trim() } : {}),
+    }
+
+    let { data, error } = await db
       .from("bookings")
-      .insert({
-        reference: generateReference(),
-        customer_id: user.id,
-        customer_name: customerName,
-        customer_email: customerEmail,
-        service_type: "delivery",
-        vehicle_category: "motorcycle",
-        pickup: input.pickup.trim(),
-        destination: input.destination.trim(),
-        scheduled_at: input.scheduledAt || new Date().toISOString(),
-        passengers: 0,
-        payment_mode: "cash",
-        estimated_fare: input.estimatedFare,
-        notes: serializedNotes,
-        status: "pending",
-        rider_id: null,
-      })
+      .insert(extendedPayload)
       .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
       .single()
+
+    // Graceful fallback to core payload if columns don't exist yet in Supabase
+    if (error && error.message?.includes("column")) {
+      const fallback = await db
+        .from("bookings")
+        .insert(corePayload)
+        .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
+        .single()
+      data = fallback.data
+      error = fallback.error
+    }
 
     if (error) {
       console.error("[createDeliveryBooking]", error)
@@ -352,6 +447,10 @@ export interface CreateRentalBookingInput {
   category: string
   pickupLocation: string
   handoverLocation: string
+  pickupPlaceName?: string
+  pickupCoords?: { lat: number; lng: number }
+  handoverPlaceName?: string
+  handoverCoords?: { lat: number; lng: number }
   startDate: string
   endDate: string
   rentalDays: number
@@ -462,6 +561,13 @@ export async function createRentalBooking(
       .filter(Boolean)
       .join(" • ")
 
+    const serializedRentalNotes = serializeBookingGeo(rentalNotes, {
+      pickupCoords: input.pickupCoords,
+      destinationCoords: input.handoverCoords,
+      pickupPlaceName: input.pickupPlaceName,
+      destPlaceName: input.handoverPlaceName,
+    })
+
     const insertPayload: Record<string, unknown> = {
       reference: generateReference(),
       customer_id: user.id,
@@ -475,13 +581,19 @@ export async function createRentalBooking(
       passengers: 1,
       payment_mode: "cash",
       estimated_fare: input.estimatedTotal,
-      notes: rentalNotes,
+      notes: serializedRentalNotes,
       status: "pending",
       rider_id: null,
       unit_id: resolvedUnitId,
       listing_id: listingId,
       rental_start_date: start.toISOString(),
       rental_end_date: end.toISOString(),
+      ...(input.pickupPlaceName ? { pickup_place_name: input.pickupPlaceName.trim() } : {}),
+      ...(input.pickupCoords?.lat != null ? { pickup_latitude: input.pickupCoords.lat } : {}),
+      ...(input.pickupCoords?.lng != null ? { pickup_longitude: input.pickupCoords.lng } : {}),
+      ...(input.handoverPlaceName ? { destination_place_name: input.handoverPlaceName.trim() } : {}),
+      ...(input.handoverCoords?.lat != null ? { destination_latitude: input.handoverCoords.lat } : {}),
+      ...(input.handoverCoords?.lng != null ? { destination_longitude: input.handoverCoords.lng } : {}),
     }
 
     let { data, error } = await db

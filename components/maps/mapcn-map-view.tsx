@@ -236,6 +236,8 @@ export function MapcnMapView({
   enableLocationSelect = false,
   onLocationSelect,
   selectedLocation,
+  draggableSelectedPin = false,
+  onSelectedPinDragEnd,
   showControls = true,
   route,
   secondaryRoute,
@@ -281,10 +283,12 @@ export function MapcnMapView({
         category: "selected",
         badgeText: "Selected GPS Pin",
         description: `Latitude: ${selectedLocation.lat.toFixed(5)}, Longitude: ${selectedLocation.lng.toFixed(5)}`,
+        draggable: Boolean(draggableSelectedPin),
+        onDragEnd: onSelectedPinDragEnd,
       })
     }
     return combined
-  }, [landmarkMarkers, markers, selectedLocation])
+  }, [landmarkMarkers, markers, selectedLocation, draggableSelectedPin, onSelectedPinDragEnd])
 
   // Ensure route coordinates are in [lng, lat] GeoJSON format for MapCN
   const routeCoordinates = route?.coordinates

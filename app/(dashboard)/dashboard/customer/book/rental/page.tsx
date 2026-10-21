@@ -212,9 +212,14 @@ export default function RentalBookingPage() {
         itemTitle: selectedItem.title,
         category: selectedItem.category,
         pickupLocation: selectedItem.pickupAddress || "Butuan City",
+        pickupPlaceName: selectedItem.pickupAddress?.split(",")[0] || selectedItem.title,
+        pickupCoords: resolveButuanCoordinates(selectedItem.pickupAddress),
         handoverLocation: handoverMethod === "delivery" && customDeliveryAddress.trim()
           ? customDeliveryAddress
           : (selectedItem.pickupAddress || "Butuan City"),
+        handoverPlaceName: handoverMethod === "delivery" && customDeliveryAddress.trim()
+          ? customDeliveryAddress.split(",")[0]
+          : (selectedItem.pickupAddress?.split(",")[0] || selectedItem.title),
         startDate,
         endDate,
         rentalDays: estimate.durationDays,
