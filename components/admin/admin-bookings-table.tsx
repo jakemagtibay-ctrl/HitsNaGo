@@ -324,21 +324,36 @@ export function AdminBookingsTable({
       />
 
       {/* Bookings Table */}
-      <Card className="border-border/80 bg-card shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1440px] table-fixed text-left border-collapse text-xs">
+      <Card className="border-border/80 bg-card shadow-xs overflow-hidden w-full max-w-full">
+        <div className="overflow-x-auto w-full">
+          <table
+            className="w-full min-w-[1510px] table-fixed text-left border-collapse text-xs"
+            style={{ width: "100%", minWidth: "1510px", tableLayout: "fixed" }}
+          >
+            <colgroup>
+              <col style={{ width: "130px" }} />
+              <col style={{ width: "170px" }} />
+              <col style={{ width: "95px" }} />
+              <col style={{ width: "190px" }} />
+              <col style={{ width: "190px" }} />
+              <col style={{ width: "145px" }} />
+              <col style={{ width: "200px" }} />
+              <col style={{ width: "90px" }} />
+              <col style={{ width: "170px" }} />
+              <col style={{ width: "130px" }} />
+            </colgroup>
             <thead>
               <tr className="border-b border-border bg-muted/30 text-muted-foreground uppercase text-[10px] font-bold tracking-wider">
-                <th className="py-3 px-4 w-[130px] min-w-[130px]">Booking Ref</th>
-                <th className="py-3 px-4 w-[170px] min-w-[160px]">Customer</th>
-                <th className="py-3 px-4 w-[95px] min-w-[90px]">Service</th>
-                <th className="py-3 px-4 w-[185px] min-w-[170px]">Pickup</th>
-                <th className="py-3 px-4 w-[185px] min-w-[170px]">Destination</th>
-                <th className="py-3 px-4 w-[145px] min-w-[140px]">Scheduled</th>
-                <th className="py-3 px-4 w-[195px] min-w-[185px]">Status & Incidents</th>
-                <th className="py-3 px-4 w-[90px] min-w-[85px]">Fare</th>
-                <th className="py-3 px-4 w-[175px] min-w-[160px]">Assigned Rider</th>
-                <th className="py-3 px-4 w-[130px] min-w-[120px] text-right">Action</th>
+                <th style={{ width: "130px" }} className="py-3 px-4 w-[130px]">Booking Ref</th>
+                <th style={{ width: "170px" }} className="py-3 px-4 w-[170px]">Customer</th>
+                <th style={{ width: "95px" }} className="py-3 px-4 w-[95px]">Service</th>
+                <th style={{ width: "190px" }} className="py-3 px-4 w-[190px]">Pickup</th>
+                <th style={{ width: "190px" }} className="py-3 px-4 w-[190px]">Destination</th>
+                <th style={{ width: "145px" }} className="py-3 px-4 w-[145px]">Scheduled</th>
+                <th style={{ width: "200px" }} className="py-3 px-4 w-[200px]">Status & Incidents</th>
+                <th style={{ width: "90px" }} className="py-3 px-4 w-[90px]">Fare</th>
+                <th style={{ width: "170px" }} className="py-3 px-4 w-[170px]">Assigned Rider</th>
+                <th style={{ width: "130px" }} className="py-3 px-4 w-[130px] text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -357,35 +372,45 @@ export function AdminBookingsTable({
 
                   return (
                     <tr key={b.id} className="hover:bg-muted/30 transition-colors group">
-                      <td
-                        className="py-3.5 px-4 w-[130px] font-mono font-bold text-foreground group-hover:text-primary transition-colors truncate"
-                        title={b.reference}
-                      >
-                        {b.reference}
+                      {/* 1. Booking Ref */}
+                      <td className="py-3 px-4 w-[130px] align-top">
+                        <div className="w-full max-w-full min-w-0 overflow-hidden">
+                          <span
+                            className="block truncate font-mono font-bold text-foreground group-hover:text-primary transition-colors"
+                            title={b.reference}
+                          >
+                            {b.reference}
+                          </span>
+                        </div>
                       </td>
 
-                      <td className="py-3.5 px-4 w-[170px] overflow-hidden">
-                        <div className="flex flex-col min-w-0 w-full">
-                          <span className="font-semibold text-foreground truncate" title={b.customer_name}>
+                      {/* 2. Customer */}
+                      <td className="py-3 px-4 w-[170px] align-top">
+                        <div className="w-full max-w-full min-w-0 overflow-hidden flex flex-col gap-0.5">
+                          <span className="block truncate font-semibold text-foreground text-xs" title={b.customer_name}>
                             {b.customer_name}
                           </span>
-                          <span className="text-[10px] text-muted-foreground truncate" title={b.customer_email || ""}>
+                          <span className="block truncate text-[10px] text-muted-foreground" title={b.customer_email || ""}>
                             {b.customer_email}
                           </span>
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 w-[95px]">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold uppercase text-foreground">
-                          {b.service_type}
-                        </span>
+                      {/* 3. Service */}
+                      <td className="py-3 px-4 w-[95px] align-top">
+                        <div className="w-full max-w-full min-w-0 overflow-hidden">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold uppercase text-foreground">
+                            {b.service_type}
+                          </span>
+                        </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-muted-foreground w-[185px] overflow-hidden">
-                        <div className="flex items-start gap-1.5 min-w-0 w-full overflow-hidden">
+                      {/* 4. Pickup */}
+                      <td className="py-3 px-4 text-muted-foreground w-[190px] align-top">
+                        <div className="w-full max-w-full min-w-0 overflow-hidden flex items-start gap-1.5">
                           <HugeiconsIcon icon={PinLocation01Icon} size={13} className="shrink-0 text-primary mt-0.5" />
                           <span
-                            className="block truncate text-xs min-w-0 flex-1 font-medium text-foreground leading-relaxed"
+                            className="block truncate text-xs min-w-0 flex-1 font-medium text-foreground leading-snug"
                             title={b.pickup}
                           >
                             {b.pickup}
@@ -393,8 +418,9 @@ export function AdminBookingsTable({
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-muted-foreground w-[185px] overflow-hidden">
-                        <div className="flex items-start gap-1.5 min-w-0 w-full overflow-hidden">
+                      {/* 5. Destination */}
+                      <td className="py-3 px-4 text-muted-foreground w-[190px] align-top">
+                        <div className="w-full max-w-full min-w-0 overflow-hidden flex items-start gap-1.5">
                           <HugeiconsIcon
                             icon={PinLocation01Icon}
                             size={13}
@@ -405,42 +431,54 @@ export function AdminBookingsTable({
                           />
                           <span
                             className={cn(
-                              "block truncate text-xs min-w-0 flex-1 leading-relaxed",
+                              "block truncate text-xs min-w-0 flex-1 leading-snug",
                               b.destination ? "text-foreground font-medium" : "text-muted-foreground/60 italic"
                             )}
-                            title={b.destination ? b.destination : "No destination specified"}
+                            title={b.destination ? b.destination : "No destination specified (Open Point / Rental)"}
                           >
                             {b.destination || "—"}
                           </span>
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-muted-foreground w-[145px] whitespace-nowrap overflow-hidden">
-                        <div className="flex flex-col min-w-0 leading-tight">
-                          <span className="text-foreground font-medium truncate">
+                      {/* 6. Scheduled */}
+                      <td className="py-3 px-4 text-muted-foreground w-[145px] align-top">
+                        <div className="w-full max-w-full min-w-0 overflow-hidden flex flex-col gap-0.5 leading-tight">
+                          <span
+                            className="block truncate text-foreground font-medium text-xs"
+                            title={new Date(b.scheduled_at).toLocaleDateString("en-PH", { dateStyle: "medium", timeZone: "Asia/Manila" })}
+                          >
                             {new Date(b.scheduled_at).toLocaleDateString("en-PH", { dateStyle: "short", timeZone: "Asia/Manila" })}
                           </span>
-                          <span className="text-[10px] text-muted-foreground truncate">
+                          <span
+                            className="block truncate text-[10px] text-muted-foreground"
+                            title={new Date(b.scheduled_at).toLocaleTimeString("en-PH", { timeStyle: "medium", timeZone: "Asia/Manila" })}
+                          >
                             {new Date(b.scheduled_at).toLocaleTimeString("en-PH", { timeStyle: "short", timeZone: "Asia/Manila" })}
                           </span>
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 w-[195px] overflow-hidden">
-                        <div className="flex flex-col gap-1.5 min-w-0 w-full">
-                          <AdminStatusBadge status={b.status} />
+                      {/* 7. Status & Incidents */}
+                      <td className="py-3 px-4 w-[200px] align-top">
+                        <div className="w-full max-w-full min-w-0 overflow-hidden flex flex-col gap-1.5">
+                          <div className="flex items-center min-w-0">
+                            <AdminStatusBadge status={b.status} />
+                          </div>
 
                           {/* Cancellation Details */}
                           {isCancelled && parsed.cancellation && (
                             <div
-                              className="flex flex-col gap-0.5 text-[10px] text-destructive bg-destructive/5 border border-destructive/20 rounded p-1.5 min-w-0 w-full overflow-hidden"
-                              title={`Reason: ${parsed.cancellation.reason}\nBy: ${parsed.cancellation.cancelledBy} (${parsed.cancellation.cancelledByRole})`}
+                              className="w-full max-w-full min-w-0 overflow-hidden flex flex-col gap-0.5 text-[10px] text-destructive bg-destructive/5 border border-destructive/20 rounded p-1.5 box-border"
+                              title={`Reason: ${parsed.cancellation.reason}\nBy: ${parsed.cancellation.cancelledBy} (${parsed.cancellation.cancelledByRole})\nAt: ${new Date(parsed.cancellation.cancelledAt).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}`}
                             >
-                              <span className="font-bold truncate">Reason: {parsed.cancellation.reason}</span>
-                              <span className="text-[9px] text-muted-foreground truncate">
+                              <span className="block truncate font-bold max-w-full">
+                                Reason: {parsed.cancellation.reason}
+                              </span>
+                              <span className="block truncate text-[9px] text-muted-foreground max-w-full">
                                 By {parsed.cancellation.cancelledBy} ({parsed.cancellation.cancelledByRole})
                               </span>
-                              <span className="text-[9px] text-muted-foreground/75">
+                              <span className="block truncate text-[9px] text-muted-foreground/75 max-w-full">
                                 {new Date(parsed.cancellation.cancelledAt).toLocaleTimeString("en-PH", { timeStyle: "short", timeZone: "Asia/Manila" })}
                               </span>
                             </div>
@@ -449,16 +487,16 @@ export function AdminBookingsTable({
                           {/* Emergency / Incident Details */}
                           {hasEmergency && (
                             <div
-                              className="flex flex-col gap-0.5 text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded p-1.5 min-w-0 w-full overflow-hidden"
+                              className="w-full max-w-full min-w-0 overflow-hidden flex flex-col gap-0.5 text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded p-1.5 box-border"
                               title={`${parsed.emergency?.category || incident?.category || "Emergency Flagged"}: ${parsed.emergency?.description || incident?.description || "Awaiting dispatch resolution"}`}
                             >
-                              <span className="font-bold flex items-center gap-1 min-w-0">
+                              <span className="flex items-center gap-1 min-w-0 max-w-full overflow-hidden">
                                 <HugeiconsIcon icon={Alert01Icon} size={11} className="text-destructive shrink-0" />
-                                <span className="truncate">
+                                <span className="block truncate font-bold min-w-0 flex-1">
                                   {parsed.emergency?.category || incident?.category || "Emergency Flagged"}
                                 </span>
                               </span>
-                              <span className="text-[9px] truncate">
+                              <span className="block truncate text-[9px] max-w-full">
                                 {parsed.emergency?.description || incident?.description || "Awaiting dispatch resolution"}
                               </span>
                             </div>
@@ -466,49 +504,56 @@ export function AdminBookingsTable({
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 font-mono font-bold text-foreground w-[90px] whitespace-nowrap">
-                        ₱{Number(b.estimated_fare).toLocaleString("en-PH")}
+                      {/* 8. Fare */}
+                      <td className="py-3 px-4 font-mono font-bold text-foreground w-[90px] align-top">
+                        <div className="w-full max-w-full min-w-0 overflow-hidden whitespace-nowrap">
+                          ₱{Number(b.estimated_fare).toLocaleString("en-PH")}
+                        </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-muted-foreground w-[175px] overflow-hidden">
-                        {b.rider ? (
-                          <div className="flex flex-col min-w-0 w-full">
-                            <span className="text-foreground font-semibold truncate" title={b.rider.name}>
-                              {b.rider.name}
-                            </span>
-                            <span
-                              className="text-[10px] text-muted-foreground truncate"
-                              title={`${b.rider.vehicle_model} (${b.rider.plate_number})`}
-                            >
-                              {b.rider.vehicle_model} ({b.rider.plate_number})
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-0.5 min-w-0 w-full">
-                            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold text-[11px] truncate">
-                              <HugeiconsIcon icon={Clock01Icon} size={11} className="shrink-0" />
-                              <span className="truncate">
-                                {b.service_type === "rental" ? "Awaiting Provider" : "Broadcasted (Available)"}
+                      {/* 9. Assigned Rider */}
+                      <td className="py-3 px-4 text-muted-foreground w-[170px] align-top">
+                        <div className="w-full max-w-full min-w-0 overflow-hidden">
+                          {b.rider ? (
+                            <div className="flex flex-col min-w-0 w-full gap-0.5">
+                              <span className="block truncate text-foreground font-semibold text-xs" title={b.rider.name}>
+                                {b.rider.name}
                               </span>
-                            </span>
-                            {b.service_type !== "rental" && b.status === "pending" && (
-                              <span className="text-[10px] text-muted-foreground truncate">
-                                Waiting for rider acceptance
+                              <span
+                                className="block truncate text-[10px] text-muted-foreground"
+                                title={`${b.rider.vehicle_model} (${b.rider.plate_number})`}
+                              >
+                                {b.rider.vehicle_model} ({b.rider.plate_number})
                               </span>
-                            )}
-                          </div>
-                        )}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-0.5 min-w-0 w-full">
+                              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold text-[11px] min-w-0 max-w-full overflow-hidden">
+                                <HugeiconsIcon icon={Clock01Icon} size={11} className="shrink-0" />
+                                <span className="block truncate min-w-0 flex-1" title={b.service_type === "rental" ? "Awaiting Provider" : "Broadcasted (Available)"}>
+                                  {b.service_type === "rental" ? "Awaiting Provider" : "Broadcasted (Available)"}
+                                </span>
+                              </span>
+                              {b.service_type !== "rental" && b.status === "pending" && (
+                                <span className="block truncate text-[10px] text-muted-foreground" title="Waiting for rider acceptance">
+                                  Waiting for rider acceptance
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
 
-                      <td className="py-3.5 px-4 w-[130px] text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                      {/* 10. Action */}
+                      <td className="py-3 px-4 w-[130px] text-right align-top">
+                        <div className="w-full max-w-full min-w-0 overflow-hidden flex items-center justify-end gap-1.5">
                           {/* Incident Investigation Button */}
                           {(incident || parsed.emergency || isCancelled) && (
                             <Button
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-7 text-[11px] px-2 font-semibold gap-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                              className="h-7 text-[11px] px-2 font-semibold gap-1 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
                               onClick={() => handleCreateOrOpenBookingIncident(b)}
                               title="Investigate Incident History"
                             >
@@ -523,11 +568,11 @@ export function AdminBookingsTable({
                               type="button"
                               size="sm"
                               variant="outline"
-                              className="h-7 text-[11px] px-2 font-semibold gap-1 text-primary hover:text-primary"
+                              className="h-7 text-[11px] px-2 font-semibold gap-1 text-primary hover:text-primary shrink-0"
                               onClick={() => handleOpenAssignDialog(b)}
                             >
                               <HugeiconsIcon icon={UserCheck01Icon} size={12} />
-                              {b.rider ? "Reassign" : "Assign Rider"}
+                              <span>{b.rider ? "Reassign" : "Assign"}</span>
                             </Button>
                           )}
 
@@ -536,17 +581,17 @@ export function AdminBookingsTable({
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="h-7 text-[11px] px-2 font-semibold gap-1 text-muted-foreground hover:text-foreground"
+                            className="h-7 text-[11px] px-2 font-semibold gap-1 text-muted-foreground hover:text-foreground shrink-0"
                             onClick={async () => {
                               try {
                                 const res = await getOrCreateBookingConversation(b.id)
                                 if (res.conversationId) {
-                                  router.push(`/dashboard/admin/messages?conversationId=${res.conversationId}`)
+                                  router.push(`/dashboard/admin/inbox?conversationId=${res.conversationId}`)
                                 } else {
-                                  router.push(`/dashboard/admin/messages?bookingId=${b.id}`)
+                                  router.push(`/dashboard/admin/inbox?bookingId=${b.id}`)
                                 }
                               } catch {
-                                router.push(`/dashboard/admin/messages?bookingId=${b.id}`)
+                                router.push(`/dashboard/admin/inbox?bookingId=${b.id}`)
                               }
                             }}
                           >
