@@ -1,7 +1,9 @@
 "use client"
 
+// Multi-step ride booking wizard with location inputs, vehicle selection, road route calculation, and fare estimates
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Motorbike01Icon,
   Car01Icon,

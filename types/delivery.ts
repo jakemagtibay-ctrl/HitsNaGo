@@ -1,6 +1,7 @@
 import type { BaseBooking } from "./booking"
 import type { LocationAddress } from "./service"
 
+// Kinds of packages supported for on-demand delivery
 export type PackageType =
   | "documents"
   | "food"
@@ -9,6 +10,7 @@ export type PackageType =
   | "groceries"
   | "other"
 
+// Details about the parcel being sent
 export interface PackageInfo {
   type: PackageType
   description: string
@@ -18,6 +20,7 @@ export interface PackageInfo {
   photoUrl?: string
 }
 
+// Contact details of the person receiving the parcel
 export interface Recipient {
   name: string
   phone: string
@@ -25,11 +28,13 @@ export interface Recipient {
   notes?: string
 }
 
+// Contact details of the person sending the parcel
 export interface Sender {
   name: string
   phone: string
 }
 
+// Full delivery order containing pickup, dropoff, parcel, and tracking details
 export interface DeliveryBooking extends BaseBooking {
   serviceType: "delivery"
   pickupLocation: LocationAddress
@@ -48,3 +53,4 @@ export interface DeliveryBooking extends BaseBooking {
   proofOfPickupUrl?: string
   proofOfDeliveryUrl?: string
 }
+

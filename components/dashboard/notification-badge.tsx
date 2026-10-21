@@ -1,7 +1,9 @@
 "use client"
 
+// Numeric notification badge pill displayed on navigation links and icons
 import * as React from "react"
 import { cn } from "@/lib/utils"
+
 
 interface NotificationBadgeProps {
   count?: number

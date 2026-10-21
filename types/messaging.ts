@@ -1,5 +1,6 @@
 import type { UserRole } from "@/types/user"
 
+// User participating in a chat conversation
 export interface ConversationParticipant {
   id: string
   conversationId: string
@@ -10,6 +11,7 @@ export interface ConversationParticipant {
   createdAt: string
 }
 
+// Individual chat message exchanged between users
 export interface MessageItem {
   id: string
   conversationId: string
@@ -21,6 +23,7 @@ export interface MessageItem {
   updatedAt: string
 }
 
+// Conversation preview displayed in the inbox list
 export interface ConversationSummary {
   id: string
   bookingId?: string | null
@@ -42,3 +45,4 @@ export interface ConversationSummary {
     destination?: string | null
   } | null
 }
+

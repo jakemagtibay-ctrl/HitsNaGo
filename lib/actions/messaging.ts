@@ -1,11 +1,13 @@
 "use server"
 
+// Server actions for fetching user conversations, validating chat input, and participant management
 import { createServiceClient } from "@/lib/supabase"
 import { currentUser } from "@clerk/nextjs/server"
 import { getCurrentUserRole } from "@/lib/auth/roles"
 import type { UserRole } from "@/types/user"
 import type { ConversationSummary, MessageItem, ConversationParticipant } from "@/types/messaging"
 import { revalidatePath } from "next/cache"
+
 
 /**
  * Validates message content against size and quality limits

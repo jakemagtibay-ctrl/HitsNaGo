@@ -1,9 +1,11 @@
+// Unit tests for geographic bounds validation, address normalization, and Butuan City landmarks
 import assert from "node:assert/strict"
 import {
   normalizeLocationData,
   isValidCoordinateBounds,
   type LocationData,
 } from "../types/location"
+
 import {
   parseBookingGeo,
   serializeBookingGeo,

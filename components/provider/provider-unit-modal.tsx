@@ -1,7 +1,9 @@
 "use client"
 
+// Modal for rental providers to update unit availability and schedule maintenance periods
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   ToolsIcon,
   CheckmarkCircle01Icon,

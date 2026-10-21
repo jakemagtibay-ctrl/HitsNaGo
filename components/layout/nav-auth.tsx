@@ -1,8 +1,10 @@
 "use client"
 
+// Navbar authentication button group showing Login/Sign Up for guests or Dashboard/UserButton for signed-in users
 import * as React from "react"
 import Link from "next/link"
 import { useAuth, UserButton } from "@clerk/nextjs"
+
 import { HugeiconsIcon } from "@hugeicons/react"
 import { DashboardSquare01Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"

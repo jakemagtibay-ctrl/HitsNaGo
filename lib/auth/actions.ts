@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { isValidRole, type UserRole } from "./roles"
 
+// Switches the active user role during testing or demonstration by setting an HTTP cookie
 export async function switchDemoRole(newRole: UserRole) {
   if (!isValidRole(newRole)) {
     throw new Error("Invalid role specified.")
@@ -21,3 +22,4 @@ export async function switchDemoRole(newRole: UserRole) {
   revalidatePath("/dashboard", "layout")
   redirect(`/dashboard/${newRole}`)
 }
+

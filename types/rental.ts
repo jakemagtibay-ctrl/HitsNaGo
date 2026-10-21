@@ -1,11 +1,15 @@
 import type { BaseBooking } from "./booking"
 
+// Category of items available for rent
 export type RentalCategory = "vehicle" | "equipment" | "space" | "service"
 
+// General operational state of a rental listing
 export type RentalStatus = "available" | "rented" | "maintenance" | "inactive"
 
+// How the customer receives the rented item
 export type HandoverMethod = "pickup" | "delivery"
 
+// Listing information for an item offered by a rental provider
 export interface RentalListing {
   id: string
   providerId: string
@@ -25,8 +29,10 @@ export interface RentalListing {
   updatedAt: string
 }
 
+// Current status of an individual physical rental unit
 export type UnitStatus = "available" | "maintenance" | "unavailable"
 
+// Specific physical vehicle or unit belonging to a listing
 export interface RentalUnit {
   id: string
   listingId: string
@@ -40,6 +46,7 @@ export interface RentalUnit {
   updatedAt: string
 }
 
+// Detailed availability status code for multiple units
 export type AvailabilityStatus =
   | "available"
   | "all_booked"
@@ -49,6 +56,7 @@ export type AvailabilityStatus =
   | "mixed_available"
   | "mixed_unavailable"
 
+// Calculated inventory result showing unit counts and availability for a listing
 export interface ModelAvailabilityResult {
   listingId: string
   modelName: string
@@ -62,6 +70,7 @@ export interface ModelAvailabilityResult {
   message: string
 }
 
+// Booking record for a rental reservation
 export interface RentalBooking extends BaseBooking {
   serviceType: "rental"
   listingId: string
@@ -80,3 +89,4 @@ export interface RentalBooking extends BaseBooking {
   checkInNotes?: string
   returnInspectionNotes?: string
 }
+

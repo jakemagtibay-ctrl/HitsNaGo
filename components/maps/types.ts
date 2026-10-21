@@ -1,4 +1,6 @@
+// Type definitions for map markers, marker categories, and the Butuan City map component
 export type MarkerCategory =
+
   | "hub"
   | "pickup"
   | "destination"

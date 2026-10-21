@@ -1,8 +1,10 @@
 "use client"
 
+// Dynamically loads the interactive Butuan City map on the client side with loading skeletons
 import * as React from "react"
 import dynamic from "next/dynamic"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { Location01Icon } from "@hugeicons/core-free-icons"
 import { Card } from "@/components/ui/card"
 import type { ButuanCityMapProps } from "./types"

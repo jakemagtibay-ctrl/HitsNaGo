@@ -1,7 +1,9 @@
 "use client"
 
+// Dashboard widget for rental providers to quickly approve, reject, or mark rental bookings completed
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   CheckmarkCircle01Icon,
   Cancel01Icon,

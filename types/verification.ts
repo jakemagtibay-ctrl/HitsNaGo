@@ -1,5 +1,6 @@
 import type { UserRole } from "./user"
 
+// Verification state of a rider or provider account
 export type VerificationStatus =
   | "unverified"
   | "pending"
@@ -7,6 +8,7 @@ export type VerificationStatus =
   | "rejected"
   | "resubmission_required"
 
+// Supported Philippine government-issued identification cards
 export type GovernmentIdType =
   | "philippine_national_id"
   | "philippine_passport"
@@ -14,6 +16,7 @@ export type GovernmentIdType =
   | "umid"
   | "other"
 
+// Option descriptor for selecting an ID type in verification forms
 export interface GovernmentIdOption {
   id: GovernmentIdType
   label: string
@@ -21,7 +24,9 @@ export interface GovernmentIdOption {
   description: string
 }
 
+// Predefined list of government IDs accepted during registration
 export const GOVERNMENT_ID_OPTIONS: GovernmentIdOption[] = [
+
   {
     id: "philippine_national_id",
     label: "Philippine National ID (PhilID / ePhilID)",
@@ -54,6 +59,7 @@ export const GOVERNMENT_ID_OPTIONS: GovernmentIdOption[] = [
   },
 ]
 
+// Types of supporting documents applicants can upload
 export type VerificationDocumentType =
   | "government_id"
   | "drivers_license"
@@ -62,6 +68,7 @@ export type VerificationDocumentType =
   | "barangay_clearance"
   | "police_clearance"
 
+// Uploaded file reference and metadata for verification
 export interface VerificationDocument {
   id: string
   documentType: VerificationDocumentType
@@ -71,6 +78,7 @@ export interface VerificationDocument {
   expiresAt?: string
 }
 
+// Complete verification application submitted by a user for admin approval
 export interface VerificationRequest {
   id: string
   userId: string
@@ -84,8 +92,10 @@ export interface VerificationRequest {
   adminNotes?: string
 }
 
+// Verification badge data displayed on user cards and profiles
 export interface UserVerificationBadge {
   userId: string
   status: VerificationStatus
   verifiedAt?: string
 }
+

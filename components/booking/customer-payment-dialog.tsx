@@ -1,8 +1,10 @@
 "use client"
 
+// Dialog displaying cash payment status, receipt details, and fare breakdown for a booking
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Coins01Icon,
   CheckmarkCircle01Icon,

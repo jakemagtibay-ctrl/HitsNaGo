@@ -1,6 +1,8 @@
+// Main layout shell that frames dashboard views with navigation sidebars, headers, and notification providers
 import * as React from "react"
 import Link from "next/link"
 import { DashboardSidebar } from "./dashboard-sidebar"
+
 import { DashboardHeader } from "./dashboard-header"
 import { NotificationProvider } from "@/components/notifications/notification-provider"
 import type { UserRole } from "@/lib/auth/roles"

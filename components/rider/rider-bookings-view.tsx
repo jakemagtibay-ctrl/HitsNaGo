@@ -1,8 +1,10 @@
 "use client"
 
+// Rider view for accepting incoming requests, managing active trips, updating statuses, and logging cash payments
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Motorbike01Icon,
   PinLocation01Icon,

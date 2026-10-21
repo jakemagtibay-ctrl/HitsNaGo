@@ -1,7 +1,9 @@
 "use client"
 
+// Address input component with real-time Butuan City place suggestions and modal picker trigger
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   PinLocation01Icon,
   Search01Icon,

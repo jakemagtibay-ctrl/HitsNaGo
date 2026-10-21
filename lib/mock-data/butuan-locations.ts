@@ -1,6 +1,8 @@
+// Preset list of popular landmarks, malls, schools, and hospitals in Butuan City for quick location selection
 import type { LocationAddress } from "@/types/service"
 
 export interface ButuanLocationPreset {
+
   id: string
   name: string
   barangay: string

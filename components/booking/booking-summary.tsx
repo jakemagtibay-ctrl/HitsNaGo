@@ -1,5 +1,7 @@
+// Summary card displaying trip route, selected vehicle, scheduled time, and estimated total before confirmation
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   PinLocation01Icon,
   Calendar01Icon,

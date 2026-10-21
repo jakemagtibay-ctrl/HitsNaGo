@@ -1,7 +1,9 @@
 import type { VerificationStatus } from "./verification"
 
+// Available user account types across the platform
 export type UserRole = "customer" | "rider" | "provider" | "admin"
 
+// Shared profile fields for all system users
 export interface BaseUser {
   id: string
   name: string
@@ -14,6 +16,7 @@ export interface BaseUser {
   updatedAt: string
 }
 
+// Favorite or frequently used pickup/drop-off point saved by a customer
 export interface CustomerSavedAddress {
   id: string
   label: string
@@ -23,18 +26,21 @@ export interface CustomerSavedAddress {
   isDefault?: boolean
 }
 
+// Contact details for emergencies during trips
 export interface EmergencyContact {
   name: string
   phone: string
   relation: string
 }
 
+// Customer user profile with saved addresses and emergency contact
 export interface Customer extends BaseUser {
   role: "customer"
   savedAddresses?: CustomerSavedAddress[]
   emergencyContact?: EmergencyContact
 }
 
+// Rider user profile with active status, location coordinates, and ratings
 export interface Rider extends BaseUser {
   role: "rider"
   vehicleId?: string
@@ -52,6 +58,7 @@ export interface Rider extends BaseUser {
   completedDeliveriesCount: number
 }
 
+// Rental provider profile with shop/business details
 export interface Provider extends BaseUser {
   role: "provider"
   businessName?: string
@@ -63,10 +70,13 @@ export interface Provider extends BaseUser {
   completedBookingsCount: number
 }
 
+// System administrator profile with elevated permissions
 export interface Admin extends BaseUser {
   role: "admin"
   department?: string
   permissions: string[]
 }
 
+// Union of all user profile types
 export type User = Customer | Rider | Provider | Admin
+

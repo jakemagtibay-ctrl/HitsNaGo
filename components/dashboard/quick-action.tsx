@@ -1,6 +1,8 @@
+// Shortcut card component providing quick access to primary actions like booking a ride or renting a car
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 

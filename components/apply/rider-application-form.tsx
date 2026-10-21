@@ -1,8 +1,10 @@
 "use client"
 
+// Form allowing users to apply as verified riders with vehicle info and government ID photo uploads
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Motorbike01Icon,
   Clock01Icon,

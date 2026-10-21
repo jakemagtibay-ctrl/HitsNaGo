@@ -1,8 +1,10 @@
 "use client"
 
+// Dashboard view rendering the customer's active and past bookings with tracking, receipt, and cancellation actions
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Calendar01Icon,

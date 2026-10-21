@@ -1,8 +1,10 @@
 "use client"
 
+// Dropdown menu showing recent alerts and system notifications with mark-as-read options
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Notification01Icon,
   CheckmarkCircle01Icon,

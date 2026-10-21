@@ -1,8 +1,10 @@
 "use client"
 
+// Sidebar navigation menu adapting links and notification badges to the user's active role (customer, rider, provider, admin)
 import * as React from "react"
 import Link from "next/link"
 import Image from "next/image"
+
 import { usePathname } from "next/navigation"
 import { useUser, useClerk } from "@clerk/nextjs"
 import { HugeiconsIcon } from "@hugeicons/react"

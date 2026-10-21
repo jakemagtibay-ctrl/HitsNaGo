@@ -1,5 +1,7 @@
+// Empty state placeholder displayed when no records, bookings, or search results are found
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { AlertCircleIcon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"

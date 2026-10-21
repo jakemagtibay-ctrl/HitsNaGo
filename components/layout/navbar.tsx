@@ -1,5 +1,7 @@
+// Public top navigation bar with brand logo, landing page links, theme toggle, and authentication actions
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { Navigation01Icon } from "@hugeicons/core-free-icons"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { MobileNav } from "@/components/layout/mobile-nav"

@@ -1,7 +1,9 @@
 "use client"
 
+// Slide-over drawer component for inspecting detailed records of users, vehicles, or bookings
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { Cancel01Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 

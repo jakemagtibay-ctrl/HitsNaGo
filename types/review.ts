@@ -1,11 +1,10 @@
 import type { ServiceType } from "./service"
 import type { UserRole } from "./user"
 
-/**
- * Valid star ratings constrained to integers between 1 and 5 inclusive.
- */
+// Valid star ratings constrained to integers between 1 and 5 inclusive
 export type StarRating = 1 | 2 | 3 | 4 | 5
 
+// Customer feedback rating and comment submitted after a completed service
 export interface Review {
   id: string
   bookingId: string
@@ -19,3 +18,4 @@ export interface Review {
   createdAt: string
   updatedAt?: string
 }
+

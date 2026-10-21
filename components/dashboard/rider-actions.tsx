@@ -1,7 +1,9 @@
 "use client"
 
+// Rider action panel allowing riders to toggle online status, review trip requests, and accept bookings
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   CheckmarkCircle01Icon,
   Cancel01Icon,

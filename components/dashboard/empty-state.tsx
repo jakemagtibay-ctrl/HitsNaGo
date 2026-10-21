@@ -1,6 +1,8 @@
+// Clean placeholder component displayed when lists, booking histories, or tables are empty
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 

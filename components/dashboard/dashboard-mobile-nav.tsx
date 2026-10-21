@@ -1,7 +1,9 @@
 "use client"
 
+// Mobile menu toggle button that opens a drawer containing the dashboard navigation sidebar
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { Menu01Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
 import { DashboardSidebar } from "./dashboard-sidebar"
 import type { UserRole } from "@/lib/auth/roles"

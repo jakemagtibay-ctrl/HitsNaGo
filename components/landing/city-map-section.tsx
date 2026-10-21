@@ -1,6 +1,8 @@
+// Landing page section presenting the interactive MapCN map covering Butuan City hubs and landmarks
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Location01Icon,
   Motorbike01Icon,

@@ -1,6 +1,8 @@
+// Metric card widget displaying high-level counts, earnings, or percentage trends
 import * as React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { ArrowUpRight01Icon, ArrowDownRight01Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 

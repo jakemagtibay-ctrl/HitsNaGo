@@ -1,8 +1,10 @@
 "use client"
 
+// Rental provider portal view for approving reservations, tracking fleet units, and recording cash payments
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   CheckmarkCircle01Icon,
   Cancel01Icon,

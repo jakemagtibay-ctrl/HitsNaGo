@@ -1,8 +1,10 @@
+// Secure file upload validation and signed URL generation for user ID verification documents
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { createServiceClient } from "@/lib/supabase"
 
 export const VERIFICATION_BUCKET = "verification-documents"
 export const MAX_DOCUMENT_FILE_SIZE = 5 * 1024 * 1024 // 5MB limit
+
 export const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const
 
 export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number]

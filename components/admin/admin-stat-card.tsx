@@ -1,6 +1,8 @@
+// KPI summary card showing numeric metrics, trends, and styled icons on admin dashboards
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Card, CardContent } from "@/components/ui/card"
+
 import { cn } from "@/lib/utils"
 
 export interface AdminStatCardProps {

@@ -1,9 +1,11 @@
+// Calculates road routes, travel duration, and distance between points using OSRM and fallback algorithms
 import { ACTIVE_SERVICE_AREA } from "@/lib/config/service-areas"
 
 export interface RouteCoordinates {
   lat: number
   lng: number
 }
+
 
 export interface RouteOptions {
   /**

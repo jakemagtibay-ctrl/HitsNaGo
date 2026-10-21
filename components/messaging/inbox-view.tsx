@@ -1,7 +1,9 @@
 "use client"
 
+// Messaging inbox layout rendering conversations list alongside active chat threads and composer
 import * as React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
+
 import { useUser } from "@clerk/nextjs"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {

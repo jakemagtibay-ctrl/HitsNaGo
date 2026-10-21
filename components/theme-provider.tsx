@@ -1,9 +1,10 @@
 "use client"
 
+// Wraps the application with light/dark theme support using next-themes
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
-
+// Configures theme switching with class attribute and system preferences
 function ThemeProvider({
   children,
   ...props
@@ -22,6 +23,7 @@ function ThemeProvider({
   )
 }
 
+// Checks if the user is currently typing in an input field before triggering shortcuts
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
     return false
@@ -35,6 +37,7 @@ function isTypingTarget(target: EventTarget | null) {
   )
 }
 
+// Listens for 'D' keypress to quickly toggle between light and dark modes
 function ThemeHotkey() {
   const { resolvedTheme, setTheme } = useTheme()
 
@@ -70,3 +73,4 @@ function ThemeHotkey() {
 }
 
 export { ThemeProvider }
+

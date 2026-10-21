@@ -1,6 +1,8 @@
+// Sample rental listings (cars, vans, motorbikes) available in Butuan City for testing and demo purposes
 import type { RentalListing } from "@/types/rental"
 
 export interface ButuanRentalItem extends RentalListing {
+
   rating: number
   reviewsCount: number
   features: string[]

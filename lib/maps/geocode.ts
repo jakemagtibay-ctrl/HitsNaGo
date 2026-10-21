@@ -1,3 +1,4 @@
+// Forward and reverse geocoding utilities for searching places and resolving GPS coordinates in Butuan City
 import { BUTUAN_PRESET_LOCATIONS, searchButuanLocations } from "@/lib/mock-data/butuan-locations"
 import { ACTIVE_SERVICE_AREA } from "@/lib/config/service-areas"
 import type { MapMarker } from "@/components/maps/types"
@@ -8,6 +9,7 @@ import { normalizeLocationData } from "@/types/location"
 
 export { searchButuanLocations }
 export type { GeocodeResult, ReverseGeocodeResponse, LocationData }
+
 
 export interface BookingGeoMeta {
   pickupCoords?: { lat: number; lng: number }

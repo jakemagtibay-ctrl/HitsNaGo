@@ -1,6 +1,8 @@
+// Package types, weight limits, and pricing options for on-demand parcel deliveries
 import type { PackageType } from "@/types/delivery"
 
 export interface PackageCategoryOption {
+
   type: PackageType
   label: string
   description: string

@@ -1,8 +1,10 @@
 "use client"
 
+// Responsive mobile slide-out menu with navigation links and authentication options
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { useAuth, useClerk } from "@clerk/nextjs"
 import {
   Menu01Icon,

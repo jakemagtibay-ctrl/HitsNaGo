@@ -1,7 +1,9 @@
 "use client"
 
+// Dialog allowing rental providers to report vehicle breakdown or cancel a booking with valid reason
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Alert01Icon,
   Cancel01Icon,

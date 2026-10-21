@@ -1,7 +1,9 @@
 "use client"
 
+// Interactive vector map component using MapCN and MapLibre GL for Butuan City location picking and route displays
 import * as React from "react"
 import { useEffect, useRef, useState, useMemo } from "react"
+
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ReloadIcon,

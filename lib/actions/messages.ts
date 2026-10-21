@@ -1,9 +1,11 @@
 "use server"
 
+// Server actions for managing real-time chat conversations, message history, and unread counts
 import { currentUser } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { createServiceClient } from "@/lib/supabase"
 import { getCurrentUserRole } from "@/lib/auth/roles"
+
 
 export interface MessageItem {
   id: string

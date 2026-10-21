@@ -1,8 +1,10 @@
 "use client"
 
+// Live trip tracking modal showing real-time route path, driver status, and in-trip chat shortcuts
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   PinLocation01Icon,
   Navigation01Icon,

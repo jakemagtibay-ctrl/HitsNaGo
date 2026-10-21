@@ -1,6 +1,8 @@
+// Summary card displaying an individual booking with status badge, date, service icon, and price
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Motorbike01Icon,
   Key01Icon,

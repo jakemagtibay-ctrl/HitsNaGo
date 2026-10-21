@@ -1,8 +1,10 @@
 "use client"
 
+// Form allowing users to apply as verified rental providers with business details and government ID documents
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Key01Icon,
   Clock01Icon,

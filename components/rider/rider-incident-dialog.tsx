@@ -1,7 +1,9 @@
 "use client"
 
+// Dialog allowing riders to report on-road incidents, withdraw from an assigned trip, and request dispatch reassignment
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Alert01Icon,
   Cancel01Icon,

@@ -1,9 +1,11 @@
+// Handles role validation, admin whitelisting, and route authorization checks
 import { currentUser } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 import type { UserRole } from "@/types/user"
 export type { UserRole }
 
 export const VALID_ROLES: readonly UserRole[] = ["customer", "rider", "provider", "admin"] as const
+
 
 /**
  * Server-side admin email whitelist.

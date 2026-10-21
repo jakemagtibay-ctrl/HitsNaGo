@@ -1,7 +1,9 @@
 "use client"
 
+// Search and filter toolbar with category dropdowns, keyword search input, and reset controls
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { Search01Icon, FilterIcon, Cancel01Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 

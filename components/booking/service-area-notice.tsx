@@ -1,5 +1,7 @@
+// Informs users that services are exclusively operated within Butuan City, Agusan del Norte
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   PinLocation01Icon,
   ShieldCheckIcon,

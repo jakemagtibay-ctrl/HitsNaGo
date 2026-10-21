@@ -1,8 +1,10 @@
 "use client"
 
+// Real-time chat inbox allowing customers, riders, providers, and admins to exchange direct messages
 import * as React from "react"
 import Link from "next/link"
 import { useAuth, useUser } from "@clerk/nextjs"
+
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Mail01Icon,

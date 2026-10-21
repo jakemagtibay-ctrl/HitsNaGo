@@ -1,6 +1,8 @@
+// Data structures and serialization helpers for trip cancellations, emergencies, and incident reports
 import type { Booking, BookingStatus } from "@/lib/actions/bookings"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
 
 export type IncidentType =
   | "customer_cancellation"

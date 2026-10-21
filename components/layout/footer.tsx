@@ -1,6 +1,8 @@
+// Public site footer with service categories, helpful links, trust badges, and copyright notices
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Navigation01Icon, ShieldCheckIcon } from "@hugeicons/core-free-icons"
+
 
 export function Footer() {
   const currentYear = 2026

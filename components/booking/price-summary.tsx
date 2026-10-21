@@ -1,5 +1,7 @@
+// Itemized fare and pricing breakdown component with base rates, distance fees, and total sum
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { InformationCircleIcon, Coins01Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 

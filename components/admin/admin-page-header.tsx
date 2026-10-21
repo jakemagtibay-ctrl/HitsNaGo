@@ -1,5 +1,7 @@
+// Standard page title header with descriptive subtitles and action buttons for admin sections
 import * as React from "react"
 import { cn } from "@/lib/utils"
+
 
 interface AdminPageHeaderProps {
   title: string

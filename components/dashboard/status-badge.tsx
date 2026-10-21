@@ -1,5 +1,7 @@
+// Color-coded badge components for trip booking statuses and user verification states
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Clock01Icon,
   CheckmarkBadge01Icon,

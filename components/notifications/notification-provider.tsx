@@ -1,7 +1,9 @@
 "use client"
 
+// Global React context provider managing unread counts, system notifications, and real-time alerts
 import * as React from "react"
 import { useAuth } from "@clerk/nextjs"
+
 import { createBrowserClient } from "@/lib/supabase"
 import {
   getNotificationBadgeCounts,

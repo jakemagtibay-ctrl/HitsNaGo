@@ -1,6 +1,8 @@
+// Hero section showcasing the Butuan City backdrop, platform value proposition, and quick booking links
 import Link from "next/link"
 import Image from "next/image"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Location01Icon,
   CheckmarkBadge01Icon,

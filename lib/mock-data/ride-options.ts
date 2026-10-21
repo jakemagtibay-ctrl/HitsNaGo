@@ -1,6 +1,8 @@
+// Ride service tiers, vehicle capacity, rates, and sample driver options in Butuan City
 import type { VehicleType } from "@/types/vehicle"
 
 export interface RideOption {
+
   id: string
   vehicleType: VehicleType
   categoryLabel: string

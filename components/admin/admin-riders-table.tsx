@@ -1,7 +1,9 @@
 "use client"
 
+// Admin table for monitoring, activating, deactivating, and managing registered riders
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Search01Icon,
   MoreVerticalIcon,

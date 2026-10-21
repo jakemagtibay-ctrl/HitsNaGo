@@ -1,7 +1,9 @@
 "use client"
 
+// Admin table for managing rental providers, verifying businesses, and toggling active status
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Search01Icon,
   MoreVerticalIcon,

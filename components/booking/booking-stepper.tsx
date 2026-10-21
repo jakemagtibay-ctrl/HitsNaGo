@@ -1,5 +1,7 @@
+// Visual step indicator showing customer progress through the multi-step booking form
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import { CheckmarkCircle01Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 

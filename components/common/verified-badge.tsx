@@ -1,7 +1,9 @@
+// Displays a blue verified badge icon next to approved riders and rental providers
 import React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { CheckmarkBadge01Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
+
 
 export interface VerifiedBadgeProps {
   role?: "rider" | "provider"

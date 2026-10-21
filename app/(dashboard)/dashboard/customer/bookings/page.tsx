@@ -1,3 +1,4 @@
+// Customer booking history page fetching active and completed rides, rentals, and deliveries
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -14,9 +15,11 @@ export const metadata: Metadata = {
   description: "View all your ride, rental, and delivery bookings.",
 }
 
+// Server Component fetching the customer's personal bookings list
 export default async function CustomerBookingsPage() {
   await requireRole("customer")
   const bookings = await getCustomerBookings()
+
 
   return (
     <div className="flex flex-col gap-8 pb-16">

@@ -1,5 +1,6 @@
 "use server"
 
+// Server actions for sending notifications, marking alerts as read, and computing sidebar badge counters
 import { currentUser } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { createServiceClient } from "@/lib/supabase"
@@ -7,6 +8,7 @@ import type { UserRole } from "@/lib/auth/roles"
 import { getCurrentUserRole } from "@/lib/auth/roles"
 import type { Notification, NotificationBadgeCounts } from "@/types/notification"
 import { getUnreadMessagesCount } from "@/lib/actions/messages"
+
 
 // In-memory set of read notification IDs for graceful handling when notifications table is newly migrating
 const memoryReadNotificationIds = new Set<string>()

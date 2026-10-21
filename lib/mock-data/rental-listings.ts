@@ -1,6 +1,8 @@
+// Generic mock rental listings for fallback display and local component testing
 import type { RentalListing } from "@/types/rental"
 
 export const mockRentalListings: RentalListing[] = [
+
   {
     id: "listing_01",
     providerId: "user_prov_01",

@@ -1,6 +1,8 @@
+// Alert banner displaying the user's ID verification status and application action buttons
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   ShieldCheckIcon,
   Clock01Icon,

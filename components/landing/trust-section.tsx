@@ -1,7 +1,9 @@
+// Section detailing identity checks and safety assurances for customers, drivers, and rental fleet owners
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ShieldCheckIcon,
   UserCheck01Icon,
+
   Motorbike01Icon,
   Car01Icon,
   CheckmarkBadge01Icon,

@@ -1,7 +1,9 @@
+// API route for forward geocoding: converts text search queries into geographic coordinates in Butuan City
 import { NextRequest, NextResponse } from "next/server"
 import { BUTUAN_PRESET_LOCATIONS, BUTUAN_BARANGAYS } from "@/lib/mock-data/butuan-locations"
 
 export interface GeocodeResult {
+
   id: string
   placeName: string
   formattedAddress: string

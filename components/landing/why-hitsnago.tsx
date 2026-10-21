@@ -1,7 +1,9 @@
+// Section highlighting platform strengths: safety verifications, local community focus, and transparent fares
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ShieldCheckIcon,
   SmartPhone01Icon,
+
   Location01Icon,
   Wallet01Icon,
   Navigation01Icon,

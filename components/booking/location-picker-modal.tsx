@@ -1,7 +1,9 @@
 "use client"
 
+// Interactive modal for searching landmarks, browsing presets, and dragging map pins to choose pickup or dropoff locations
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   PinLocation01Icon,
   Search01Icon,

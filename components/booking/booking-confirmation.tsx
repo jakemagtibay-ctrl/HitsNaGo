@@ -1,6 +1,8 @@
+// Displays the booking confirmation receipt and reference ID after successful submission
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   CheckmarkCircle01Icon,
   Navigation01Icon,

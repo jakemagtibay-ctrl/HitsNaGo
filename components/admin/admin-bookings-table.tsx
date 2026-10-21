@@ -1,7 +1,9 @@
 "use client"
 
+// Admin data table for filtering, dispatching, and managing bookings across all service types
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   PinLocation01Icon,
   UserCheck01Icon,

@@ -1,3 +1,4 @@
+// Custom design tokens and styles applied to Clerk authentication modals and components
 export const clerkAppearance = {
   variables: {
     colorPrimary: "#0d9488",
@@ -5,6 +6,7 @@ export const clerkAppearance = {
     borderRadius: "0.75rem",
     fontFamily: "var(--font-sans), sans-serif",
   },
+
   elements: {
     rootBox: "w-full",
     card: "border border-border/80 bg-card/95 text-card-foreground shadow-xl rounded-2xl p-6 sm:p-8 backdrop-blur-xs",

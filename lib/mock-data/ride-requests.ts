@@ -1,5 +1,7 @@
+// Sample incoming ride hailing requests displayed in the rider dashboard for testing
 export interface IncomingRideRequest {
   id: string
+
   passengerName: string
   passengerRating: number
   passengerAvatarUrl?: string

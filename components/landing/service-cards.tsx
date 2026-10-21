@@ -1,5 +1,7 @@
+// Landing page cards highlighting the three primary services: Ride Hailing, Vehicle Rentals, and Parcel Delivery
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Motorbike01Icon,
   Car01Icon,

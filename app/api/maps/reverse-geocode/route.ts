@@ -1,8 +1,10 @@
+// API route for reverse geocoding: converts GPS latitude/longitude into human-readable street addresses
 import { NextRequest, NextResponse } from "next/server"
 import { BUTUAN_PRESET_LOCATIONS } from "@/lib/mock-data/butuan-locations"
 import type { LocationData } from "@/types/location"
 
 export interface ReverseGeocodeResponse extends LocationData {
+
   title: string
   address: string
   isApproximate?: boolean

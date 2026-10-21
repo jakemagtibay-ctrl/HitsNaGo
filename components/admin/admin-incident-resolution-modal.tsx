@@ -1,7 +1,9 @@
 "use client"
 
+// Admin modal for investigating safety incidents, adding remarks, reassigning riders, or resolving disputes
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Alert01Icon,
   CheckmarkCircle01Icon,

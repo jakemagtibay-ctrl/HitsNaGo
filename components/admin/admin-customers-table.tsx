@@ -1,7 +1,9 @@
 "use client"
 
+// Admin table listing registered customer accounts, booking totals, and join dates
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Search01Icon,
   RefreshIcon,

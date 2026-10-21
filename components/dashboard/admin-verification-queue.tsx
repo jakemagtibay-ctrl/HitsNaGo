@@ -1,7 +1,9 @@
 "use client"
 
+// Dashboard queue card allowing administrators to quickly review pending identity verification requests
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   CheckmarkCircle01Icon,
   Cancel01Icon,

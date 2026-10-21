@@ -1,9 +1,11 @@
+// Three-step visual guide explaining how users book rides, rentals, and parcel deliveries on HitsNaGo
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Navigation01Icon,
   Calendar01Icon,
   CheckmarkCircle01Icon,
 } from "@hugeicons/core-free-icons"
+
 import { Badge } from "@/components/ui/badge"
 
 const steps = [

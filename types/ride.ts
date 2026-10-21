@@ -2,8 +2,10 @@ import type { BaseBooking } from "./booking"
 import type { LocationAddress } from "./service"
 import type { VehicleType } from "./vehicle"
 
+// Allowed vehicle categories for ride hailing
 export type RideVehicleCategory = VehicleType
 
+// Represents a complete ride hailing booking record
 export interface RideBooking extends BaseBooking {
   serviceType: "ride"
   pickupLocation: LocationAddress
@@ -21,3 +23,4 @@ export interface RideBooking extends BaseBooking {
   rideStartedAt?: string
   rideCompletedAt?: string
 }
+

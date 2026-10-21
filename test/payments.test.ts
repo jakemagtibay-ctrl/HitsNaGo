@@ -1,7 +1,9 @@
+// Unit tests for the simplified cash payment flow, fare mismatch validation, and receipt records
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { config } from "dotenv"
 import { resolve } from "node:path"
+
 
 config({ path: resolve(process.cwd(), ".env.local") })
 

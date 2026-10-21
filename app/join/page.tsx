@@ -1,3 +1,4 @@
+// Partner onboarding gateway page allowing users to choose between applying as a Rider or a Rental Provider
 import type { Metadata } from "next"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -11,13 +12,16 @@ import { Footer } from "@/components/layout/footer"
 import { JoinPathwayCards } from "@/components/join/join-pathway-cards"
 import { Badge } from "@/components/ui/badge"
 
+// SEO metadata for partner registration
 export const metadata: Metadata = {
   title: "Become a Rider or Rental Provider - HitsNaGo",
   description:
     "Choose your pathway to earn with HitsNaGo. Apply as a verified rider for ride services and deliveries, or register as a rental provider to list vehicles and equipment.",
 }
 
+// Renders the partner application selection portal
 export default function JoinPage() {
+
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
       <Navbar />

@@ -1,6 +1,8 @@
+// Sample notification records for demonstration and offline development
 import type { Notification } from "@/types/notification"
 
 export const mockNotifications: Notification[] = [
+
   {
     id: "notif_001",
     userId: "user_cust_01",

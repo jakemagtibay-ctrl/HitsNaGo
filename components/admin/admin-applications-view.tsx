@@ -1,7 +1,9 @@
 "use client"
 
+// Admin view for reviewing government ID verification documents and approving or rejecting rider and provider applications
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Motorbike01Icon,
   Key01Icon,

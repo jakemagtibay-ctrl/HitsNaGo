@@ -1,3 +1,4 @@
+// Unit tests for GPS coordinates validation, Haversine straight-line distance, and OSRM road routes
 import assert from "node:assert/strict"
 import {
   calculateHaversineDistanceKm,
@@ -7,6 +8,7 @@ import {
   getRoadRoute,
   type RouteCoordinates,
 } from "../lib/maps/routing"
+
 
 console.log("=== RUNNING HITSNAGO OSRM ROUTING & FALLBACK TEST SUITE ===\n")
 

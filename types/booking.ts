@@ -3,6 +3,7 @@ import type { RideBooking } from "./ride"
 import type { RentalBooking } from "./rental"
 import type { DeliveryBooking } from "./delivery"
 
+// Represents the lifecycle state of a booking (from pending to completed or cancelled)
 export type BookingStatus =
   | "pending"
   | "confirmed"
@@ -14,6 +15,7 @@ export type BookingStatus =
   | "cancelled"
   | "rejected"
 
+// Supported payment options for customers
 export type PaymentMethod =
   | "cash"
   | "gcash"
@@ -21,8 +23,10 @@ export type PaymentMethod =
   | "bank_transfer"
   | "wallet"
 
+// Tracks whether the booking fee has been collected
 export type PaymentStatus = "pending" | "paid" | "refunded" | "failed"
 
+// Base booking data shared across rides, rentals, and deliveries
 export interface BaseBooking {
   id: string
   customerId: string
@@ -43,4 +47,6 @@ export interface BaseBooking {
   updatedAt: string
 }
 
+// Union of all specific booking models
 export type Booking = RideBooking | RentalBooking | DeliveryBooking
+

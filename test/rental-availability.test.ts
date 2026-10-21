@@ -1,6 +1,8 @@
+// Unit tests for rental vehicle availability, date overlap calculations, and maintenance scheduling
 import assert from "node:assert/strict"
 import { doDateRangesOverlap } from "../lib/rentals/availability"
 import type { RentalUnit, UnitStatus, ModelAvailabilityResult } from "../types/rental"
+
 
 console.log("=== RUNNING HITSNAGO RENTAL AVAILABILITY & INVENTORY TEST SUITE ===\n")
 

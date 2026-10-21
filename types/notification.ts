@@ -1,3 +1,4 @@
+// Categories of notifications delivered to users
 export type NotificationType =
   | "booking"
   | "verification"
@@ -6,6 +7,7 @@ export type NotificationType =
   | "dispute"
   | "emergency"
 
+// Stored notification item with payload and read status
 export interface Notification {
   id: string
   userId: string
@@ -25,6 +27,7 @@ export interface Notification {
   createdAt: string
 }
 
+// Unread badge counts displayed across dashboard navigation menus
 export interface NotificationBadgeCounts {
   // Messages / Inbox (all roles)
   messages: number
@@ -50,3 +53,4 @@ export interface NotificationBadgeCounts {
   // Total summary for Dashboard
   totalActionable: number
 }
+

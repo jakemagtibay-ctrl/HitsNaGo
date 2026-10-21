@@ -1,3 +1,4 @@
+// Public landing page displaying service highlights, interactive city map, trust pillars, and how-it-works sections
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { HeroSection } from "@/components/landing/hero-section"
@@ -9,9 +10,11 @@ import { WhyHitsNaGo } from "@/components/landing/why-hitsnago"
 import { PartnerSection } from "@/components/landing/partner-section"
 import { CtaSection } from "@/components/landing/cta-section"
 
+// Renders the full public homepage layout
 export default function HomePage() {
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
+
       <Navbar />
       <main className="flex-1">
         <HeroSection />

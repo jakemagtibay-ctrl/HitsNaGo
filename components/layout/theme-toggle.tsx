@@ -1,7 +1,9 @@
 "use client"
 
+// Interactive button that toggles between dark mode and light mode with sun and moon icons
 import * as React from "react"
 import { useTheme } from "next-themes"
+
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Sun01Icon, Moon01Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"

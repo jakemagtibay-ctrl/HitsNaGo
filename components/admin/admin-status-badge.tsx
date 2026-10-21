@@ -1,5 +1,7 @@
+// Status badge component that displays color-coded badges for accounts, verifications, and disputes
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   CheckmarkCircle01Icon,
   Cancel01Icon,

@@ -1,8 +1,10 @@
 "use client"
 
+// Operations command center displaying live Butuan City map, active dispatches, and trip status tracking
 import * as React from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Motorbike01Icon,
   PackageIcon,

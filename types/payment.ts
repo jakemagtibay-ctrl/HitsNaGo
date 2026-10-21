@@ -1,7 +1,10 @@
+// Cash payment method used for offline cash transactions
 export type PaymentMethod = "cash"
 
+// Tracking status of the cash transaction
 export type PaymentStatus = "pending" | "paid"
 
+// Record of a cash payment stored in the database
 export interface PaymentTransaction {
   id: string
   bookingId: string
@@ -18,6 +21,7 @@ export interface PaymentTransaction {
   updatedAt: string
 }
 
+// Payload parameters for recording a cash payment received by a rider or provider
 export interface RecordCashPaymentInput {
   bookingId: string
   amount: number
@@ -26,6 +30,7 @@ export interface RecordCashPaymentInput {
   notes?: string
 }
 
+// Summary of payment status and transaction displayed on the booking details page
 export interface BookingPaymentSummary {
   bookingId: string
   reference: string
@@ -35,3 +40,4 @@ export interface BookingPaymentSummary {
   paidAt: string | null
   transaction: PaymentTransaction | null
 }
+

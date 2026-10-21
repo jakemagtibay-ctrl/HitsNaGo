@@ -1,7 +1,9 @@
 "use client"
 
+// Multi-step on-demand package delivery wizard with sender/recipient details, parcel sizing, and road routing
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   PackageIcon,
   ArrowRight01Icon,

@@ -1,7 +1,9 @@
 "use client"
 
+// Multi-step rental booking wizard with vehicle catalog, unit availability checks, date selection, and security deposits
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Key01Icon,
   Search01Icon,

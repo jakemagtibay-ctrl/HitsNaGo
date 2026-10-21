@@ -1,6 +1,8 @@
+// Top navigation bar for the dashboard with mobile navigation toggle, role switcher, and notification bell
 import * as React from "react"
 import { UserButton } from "@clerk/nextjs"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
+
 import { NotificationMenu } from "./notification-menu"
 import { RoleSwitcher } from "./role-switcher"
 import { DashboardMobileNav } from "./dashboard-mobile-nav"

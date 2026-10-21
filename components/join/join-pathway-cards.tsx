@@ -1,5 +1,7 @@
+// Selection cards presenting registration pathways for aspiring riders and rental fleet providers
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Motorbike01Icon,
   Car01Icon,

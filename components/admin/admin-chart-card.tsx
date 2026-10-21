@@ -1,6 +1,8 @@
+// Visual chart card displaying metrics such as revenue, trip counts, or distributions
 import * as React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+
 
 interface BarChartItem {
   label: string

@@ -1,7 +1,9 @@
 "use client"
 
+// Emergency dialog for reporting accidents, breakdowns, or safety concerns during active trips
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Alert01Icon,
   CallIcon,

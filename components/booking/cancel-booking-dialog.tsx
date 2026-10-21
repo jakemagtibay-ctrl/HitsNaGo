@@ -1,7 +1,9 @@
 "use client"
 
+// Modal dialog allowing customers to select a reason and cancel an eligible booking
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
   Cancel01Icon,
   AlertCircleIcon,
