@@ -24,6 +24,7 @@ import {
   parseBookingCancellationInfo,
   type BookingIncident,
 } from "@/lib/cancellations/metadata"
+import { cn } from "@/lib/utils"
 import { AdminIncidentResolutionModal } from "@/components/admin/admin-incident-resolution-modal"
 
 interface AdminBookingsTableProps {
@@ -325,19 +326,19 @@ export function AdminBookingsTable({
       {/* Bookings Table */}
       <Card className="border-border/80 bg-card shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full min-w-[1440px] table-fixed text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-border bg-muted/30 text-muted-foreground uppercase text-[10px] font-bold tracking-wider">
-                <th className="py-3 px-4">Booking Ref</th>
-                <th className="py-3 px-4">Customer</th>
-                <th className="py-3 px-4">Service</th>
-                <th className="py-3 px-4">Pickup</th>
-                <th className="py-3 px-4">Destination</th>
-                <th className="py-3 px-4">Scheduled</th>
-                <th className="py-3 px-4">Status & Incidents</th>
-                <th className="py-3 px-4">Fare</th>
-                <th className="py-3 px-4">Assigned Rider</th>
-                <th className="py-3 px-4 text-right">Action</th>
+                <th className="py-3 px-4 w-[130px] min-w-[130px]">Booking Ref</th>
+                <th className="py-3 px-4 w-[170px] min-w-[160px]">Customer</th>
+                <th className="py-3 px-4 w-[95px] min-w-[90px]">Service</th>
+                <th className="py-3 px-4 w-[185px] min-w-[170px]">Pickup</th>
+                <th className="py-3 px-4 w-[185px] min-w-[170px]">Destination</th>
+                <th className="py-3 px-4 w-[145px] min-w-[140px]">Scheduled</th>
+                <th className="py-3 px-4 w-[195px] min-w-[185px]">Status & Incidents</th>
+                <th className="py-3 px-4 w-[90px] min-w-[85px]">Fare</th>
+                <th className="py-3 px-4 w-[175px] min-w-[160px]">Assigned Rider</th>
+                <th className="py-3 px-4 w-[130px] min-w-[120px] text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -356,46 +357,85 @@ export function AdminBookingsTable({
 
                   return (
                     <tr key={b.id} className="hover:bg-muted/30 transition-colors group">
-                      <td className="py-3.5 px-4 font-mono font-bold text-foreground group-hover:text-primary transition-colors">
+                      <td
+                        className="py-3.5 px-4 w-[130px] font-mono font-bold text-foreground group-hover:text-primary transition-colors truncate"
+                        title={b.reference}
+                      >
                         {b.reference}
                       </td>
 
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-foreground">{b.customer_name}</span>
-                          <span className="text-[10px] text-muted-foreground">{b.customer_email}</span>
+                      <td className="py-3.5 px-4 w-[170px] overflow-hidden">
+                        <div className="flex flex-col min-w-0 w-full">
+                          <span className="font-semibold text-foreground truncate" title={b.customer_name}>
+                            {b.customer_name}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground truncate" title={b.customer_email || ""}>
+                            {b.customer_email}
+                          </span>
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 w-[95px]">
                         <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold uppercase text-foreground">
                           {b.service_type}
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-muted-foreground max-w-[150px]">
-                        <div className="flex items-start gap-1">
+                      <td className="py-3.5 px-4 text-muted-foreground w-[185px] overflow-hidden">
+                        <div className="flex items-start gap-1.5 min-w-0 w-full overflow-hidden">
                           <HugeiconsIcon icon={PinLocation01Icon} size={13} className="shrink-0 text-primary mt-0.5" />
-                          <span className="truncate">{b.pickup}</span>
+                          <span
+                            className="block truncate text-xs min-w-0 flex-1 font-medium text-foreground leading-relaxed"
+                            title={b.pickup}
+                          >
+                            {b.pickup}
+                          </span>
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-muted-foreground max-w-[150px]">
-                        <span className="truncate">{b.destination || "—"}</span>
+                      <td className="py-3.5 px-4 text-muted-foreground w-[185px] overflow-hidden">
+                        <div className="flex items-start gap-1.5 min-w-0 w-full overflow-hidden">
+                          <HugeiconsIcon
+                            icon={PinLocation01Icon}
+                            size={13}
+                            className={cn(
+                              "shrink-0 mt-0.5",
+                              b.destination ? "text-rose-500/80" : "text-muted-foreground/35"
+                            )}
+                          />
+                          <span
+                            className={cn(
+                              "block truncate text-xs min-w-0 flex-1 leading-relaxed",
+                              b.destination ? "text-foreground font-medium" : "text-muted-foreground/60 italic"
+                            )}
+                            title={b.destination ? b.destination : "No destination specified"}
+                          >
+                            {b.destination || "—"}
+                          </span>
+                        </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-muted-foreground whitespace-nowrap">
-                        {new Date(b.scheduled_at).toLocaleDateString("en-PH", { dateStyle: "short", timeZone: "Asia/Manila" })}{" "}
-                        {new Date(b.scheduled_at).toLocaleTimeString("en-PH", { timeStyle: "short", timeZone: "Asia/Manila" })}
+                      <td className="py-3.5 px-4 text-muted-foreground w-[145px] whitespace-nowrap overflow-hidden">
+                        <div className="flex flex-col min-w-0 leading-tight">
+                          <span className="text-foreground font-medium truncate">
+                            {new Date(b.scheduled_at).toLocaleDateString("en-PH", { dateStyle: "short", timeZone: "Asia/Manila" })}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground truncate">
+                            {new Date(b.scheduled_at).toLocaleTimeString("en-PH", { timeStyle: "short", timeZone: "Asia/Manila" })}
+                          </span>
+                        </div>
                       </td>
 
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-col gap-1.5">
+                      <td className="py-3.5 px-4 w-[195px] overflow-hidden">
+                        <div className="flex flex-col gap-1.5 min-w-0 w-full">
                           <AdminStatusBadge status={b.status} />
 
                           {/* Cancellation Details */}
                           {isCancelled && parsed.cancellation && (
-                            <div className="flex flex-col gap-0.5 text-[10px] text-destructive bg-destructive/5 border border-destructive/20 rounded p-1.5 max-w-[190px]">
+                            <div
+                              className="flex flex-col gap-0.5 text-[10px] text-destructive bg-destructive/5 border border-destructive/20 rounded p-1.5 min-w-0 w-full overflow-hidden"
+                              title={`Reason: ${parsed.cancellation.reason}\nBy: ${parsed.cancellation.cancelledBy} (${parsed.cancellation.cancelledByRole})`}
+                            >
                               <span className="font-bold truncate">Reason: {parsed.cancellation.reason}</span>
                               <span className="text-[9px] text-muted-foreground truncate">
                                 By {parsed.cancellation.cancelledBy} ({parsed.cancellation.cancelledByRole})
@@ -408,8 +448,11 @@ export function AdminBookingsTable({
 
                           {/* Emergency / Incident Details */}
                           {hasEmergency && (
-                            <div className="flex flex-col gap-0.5 text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded p-1.5 max-w-[190px]">
-                              <span className="font-bold flex items-center gap-1">
+                            <div
+                              className="flex flex-col gap-0.5 text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded p-1.5 min-w-0 w-full overflow-hidden"
+                              title={`${parsed.emergency?.category || incident?.category || "Emergency Flagged"}: ${parsed.emergency?.description || incident?.description || "Awaiting dispatch resolution"}`}
+                            >
+                              <span className="font-bold flex items-center gap-1 min-w-0">
                                 <HugeiconsIcon icon={Alert01Icon} size={11} className="text-destructive shrink-0" />
                                 <span className="truncate">
                                   {parsed.emergency?.category || incident?.category || "Emergency Flagged"}
@@ -423,26 +466,33 @@ export function AdminBookingsTable({
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 font-mono font-bold text-foreground whitespace-nowrap">
+                      <td className="py-3.5 px-4 font-mono font-bold text-foreground w-[90px] whitespace-nowrap">
                         ₱{Number(b.estimated_fare).toLocaleString("en-PH")}
                       </td>
 
-                      <td className="py-3.5 px-4 text-muted-foreground">
+                      <td className="py-3.5 px-4 text-muted-foreground w-[175px] overflow-hidden">
                         {b.rider ? (
-                          <div className="flex flex-col">
-                            <span className="text-foreground font-semibold">{b.rider.name}</span>
-                            <span className="text-[10px] text-muted-foreground">
+                          <div className="flex flex-col min-w-0 w-full">
+                            <span className="text-foreground font-semibold truncate" title={b.rider.name}>
+                              {b.rider.name}
+                            </span>
+                            <span
+                              className="text-[10px] text-muted-foreground truncate"
+                              title={`${b.rider.vehicle_model} (${b.rider.plate_number})`}
+                            >
                               {b.rider.vehicle_model} ({b.rider.plate_number})
                             </span>
                           </div>
                         ) : (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold text-[11px]">
-                              <HugeiconsIcon icon={Clock01Icon} size={11} />
-                              {b.service_type === "rental" ? "Awaiting Provider" : "Broadcasted (Available)"}
+                          <div className="flex flex-col gap-0.5 min-w-0 w-full">
+                            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold text-[11px] truncate">
+                              <HugeiconsIcon icon={Clock01Icon} size={11} className="shrink-0" />
+                              <span className="truncate">
+                                {b.service_type === "rental" ? "Awaiting Provider" : "Broadcasted (Available)"}
+                              </span>
                             </span>
                             {b.service_type !== "rental" && b.status === "pending" && (
-                              <span className="text-[10px] text-muted-foreground">
+                              <span className="text-[10px] text-muted-foreground truncate">
                                 Waiting for rider acceptance
                               </span>
                             )}
@@ -450,7 +500,7 @@ export function AdminBookingsTable({
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-3.5 px-4 w-[130px] text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Incident Investigation Button */}
                           {(incident || parsed.emergency || isCancelled) && (
