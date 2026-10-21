@@ -143,6 +143,19 @@ export function VerificationStatusBadge({ status, className }: VerificationStatu
           <span>In Review</span>
         </Badge>
       )
+    case "resubmission_required":
+      return (
+        <Badge
+          variant="outline"
+          className={cn(
+            "gap-1 border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-semibold",
+            className
+          )}
+        >
+          <HugeiconsIcon icon={AlertCircleIcon} size={13} />
+          <span>Resubmission Required</span>
+        </Badge>
+      )
     case "rejected":
       return (
         <Badge
@@ -150,7 +163,7 @@ export function VerificationStatusBadge({ status, className }: VerificationStatu
           className={cn("gap-1 bg-destructive/15 text-destructive border border-destructive/30 text-xs font-semibold", className)}
         >
           <HugeiconsIcon icon={CancelCircleIcon} size={13} />
-          <span>Action Required</span>
+          <span>Declined</span>
         </Badge>
       )
     case "unverified":

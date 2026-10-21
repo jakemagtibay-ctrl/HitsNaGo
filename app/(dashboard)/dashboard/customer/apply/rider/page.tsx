@@ -17,6 +17,7 @@ export default async function BecomeRiderPage() {
         isPending: status.isRiderPending,
         isVerified: status.isRiderVerified,
       }}
+      initialData={status.riderApplication}
     />
   )
 }

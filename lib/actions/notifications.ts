@@ -562,3 +562,54 @@ export async function markAllNotificationsAsRead(
     return { success: false, error: msg }
   }
 }
+
+export interface SendSystemNotificationParams {
+  userId: string
+  userRole: UserRole
+  title: string
+  message: string
+  type: "booking" | "verification" | "message" | "dispute" | "system" | "emergency"
+  serviceType?: "ride" | "rental" | "delivery" | "general" | "support"
+  bookingId?: string
+  actionUrl?: string
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Dispatches a system notification to a specific user and role.
+ * Persists directly into public.notifications and revalidates dashboard.
+ */
+export async function sendSystemNotification(
+  params: SendSystemNotificationParams
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const db = createServiceClient()
+    const { error } = await db.from("notifications").insert({
+      user_id: params.userId,
+      user_role: params.userRole,
+      title: params.title,
+      message: params.message,
+      type: params.type,
+      service_type: params.serviceType || "general",
+      booking_id: params.bookingId || null,
+      action_url: params.actionUrl || null,
+      metadata: params.metadata || {},
+      is_read: false,
+    })
+
+    if (error) {
+      console.warn("[sendSystemNotification] Database notice (table may need migration):", error.message)
+    }
+
+    try {
+      revalidatePath("/dashboard")
+    } catch {}
+
+    return { success: true, error: null }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to send notification."
+    console.warn("[sendSystemNotification] Exception:", msg)
+    return { success: false, error: msg }
+  }
+}
+

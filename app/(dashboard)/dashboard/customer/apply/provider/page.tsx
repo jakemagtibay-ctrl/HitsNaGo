@@ -17,6 +17,7 @@ export default async function BecomeProviderPage() {
         isPending: status.isProviderPending,
         isVerified: status.isProviderVerified,
       }}
+      initialData={status.providerApplication}
     />
   )
 }

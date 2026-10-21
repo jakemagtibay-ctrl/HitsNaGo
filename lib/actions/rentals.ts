@@ -397,6 +397,10 @@ export async function updateUnitStatus(input: {
     if (!user) return { success: false, error: "Not authenticated." }
 
     const provider = await getProviderRecord()
+    if (!provider) {
+      return { success: false, error: "Only verified and approved rental providers can modify rental inventory." }
+    }
+
     // Provider authorization: ensure provider owns this unit
     const db = createServiceClient()
 
