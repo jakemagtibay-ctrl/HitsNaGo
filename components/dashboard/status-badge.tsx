@@ -179,3 +179,7 @@ export function VerificationStatusBadge({ status, className }: VerificationStatu
       )
   }
 }
+
+export { VerifiedBadge, isUserVerified } from "@/components/common/verified-badge"
+export type { VerifiedBadgeProps } from "@/components/common/verified-badge"
+

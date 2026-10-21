@@ -50,6 +50,8 @@ export interface Booking {
     vehicle_model: string | null
     plate_number: string | null
     rating: number | null
+    is_verified?: boolean
+    verification_status?: string | null
   } | null
 }
 
@@ -64,6 +66,17 @@ export interface Rider {
   is_verified: boolean
   rating: number | null
   completed_trips_count: number
+  verification_status?: VerificationStatus | null
+  id_type?: string | null
+  id_type_custom?: string | null
+  id_front_path?: string | null
+  id_back_path?: string | null
+  rejection_reason?: string | null
+  reviewed_by?: string | null
+  reviewed_at?: string | null
+  submitted_at?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Provider {
@@ -74,6 +87,17 @@ export interface Provider {
   business_name: string | null
   is_active: boolean
   is_verified: boolean
+  verification_status?: VerificationStatus | null
+  id_type?: string | null
+  id_type_custom?: string | null
+  id_front_path?: string | null
+  id_back_path?: string | null
+  rejection_reason?: string | null
+  reviewed_by?: string | null
+  reviewed_at?: string | null
+  submitted_at?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -412,7 +436,7 @@ export async function getCustomerBookings(): Promise<Booking[]> {
     const db = createServiceClient()
     const { data, error } = await db
       .from("bookings")
-      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
       .eq("customer_id", user.id)
       .order("created_at", { ascending: false })
 
@@ -477,7 +501,7 @@ export async function getAllBookingsWithStatus(): Promise<GetAllBookingsResult> 
     const db = createServiceClient()
     const { data, error } = await db
       .from("bookings")
-      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating)")
+      .select("*, rider:riders!rider_id(id,name,email,vehicle_model,plate_number,rating,is_verified)")
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -1736,8 +1760,18 @@ export async function reviewApplication(input: {
       }
     }
 
-    const { error: updateError } = await db.from(table).update(updatePayload).eq("id", input.id)
-    if (updateError) return { error: updateError.message }
+    let { error: updateError } = await db.from(table).update(updatePayload).eq("id", input.id)
+    if (updateError) {
+      console.warn(`[reviewApplication] Full update failed on ${table}, attempting fallback with baseline columns:`, updateError.message)
+      // Fallback for baseline schema if migration 008 columns are not yet live
+      const fallbackPayload: Record<string, unknown> = {
+        is_verified: input.decision === "approve",
+        is_active: input.decision === "approve" || input.decision === "resubmit",
+        updated_at: nowIso,
+      }
+      const { error: fallbackError } = await db.from(table).update(fallbackPayload).eq("id", input.id)
+      if (fallbackError) return { error: fallbackError.message }
+    }
 
     // Update audit log if table exists
     try {
@@ -1755,48 +1789,54 @@ export async function reviewApplication(input: {
         .limit(1)
     } catch {}
 
-    // Send notifications to applicant
-    const applicantUserId = record.clerk_user_id || record.id
-    if (input.decision === "approve") {
-      await sendSystemNotification({
-        userId: applicantUserId,
-        userRole: input.type === "rider" ? "rider" : "provider",
-        title: "Government ID Verification Approved!",
-        message: `Congratulations ${record.name}! Your verification application has been approved. You now have full access to the ${
-          input.type === "rider" ? "Rider Console" : "Rental Provider Hub"
-        }.`,
-        type: "verification",
-        serviceType: input.type === "rider" ? "ride" : "rental",
-        actionUrl: input.type === "rider" ? "/dashboard/rider" : "/dashboard/provider",
-      })
-    } else if (input.decision === "reject") {
-      await sendSystemNotification({
-        userId: applicantUserId,
-        userRole: "customer",
-        title: "Verification Application Declined",
-        message: `Your ${input.type} application could not be verified. Reason: ${input.reason?.trim()}. Please review requirements before re-applying.`,
-        type: "verification",
-        serviceType: input.type === "rider" ? "ride" : "rental",
-        actionUrl: `/dashboard/customer/apply/${input.type}`,
-      })
-    } else if (input.decision === "resubmit") {
-      await sendSystemNotification({
-        userId: applicantUserId,
-        userRole: "customer",
-        title: "Action Required: ID Document Resubmission",
-        message: `Your verification requires additional information: ${input.reason?.trim()}. Please resubmit your documents.`,
-        type: "verification",
-        serviceType: input.type === "rider" ? "ride" : "rental",
-        actionUrl: `/dashboard/customer/apply/${input.type}`,
-      })
+    // Send notifications to applicant with fail-safe wrapper
+    try {
+      const applicantUserId = record.clerk_user_id || record.id
+      if (input.decision === "approve") {
+        await sendSystemNotification({
+          userId: applicantUserId,
+          userRole: input.type === "rider" ? "rider" : "provider",
+          title: "Government ID Verification Approved!",
+          message: `Congratulations ${record.name}! Your verification application has been approved. You now have full access to the ${
+            input.type === "rider" ? "Rider Console" : "Rental Provider Hub"
+          }.`,
+          type: "verification",
+          serviceType: input.type === "rider" ? "ride" : "rental",
+          actionUrl: input.type === "rider" ? "/dashboard/rider" : "/dashboard/provider",
+        })
+      } else if (input.decision === "reject") {
+        await sendSystemNotification({
+          userId: applicantUserId,
+          userRole: "customer",
+          title: "Verification Application Declined",
+          message: `Your ${input.type} application could not be verified. Reason: ${input.reason?.trim()}. Please review requirements before re-applying.`,
+          type: "verification",
+          serviceType: input.type === "rider" ? "ride" : "rental",
+          actionUrl: `/dashboard/customer/apply/${input.type}`,
+        })
+      } else if (input.decision === "resubmit") {
+        await sendSystemNotification({
+          userId: applicantUserId,
+          userRole: "customer",
+          title: "Action Required: ID Document Resubmission",
+          message: `Your verification requires additional information: ${input.reason?.trim()}. Please resubmit your documents.`,
+          type: "verification",
+          serviceType: input.type === "rider" ? "ride" : "rental",
+          actionUrl: `/dashboard/customer/apply/${input.type}`,
+        })
+      }
+    } catch (notifErr) {
+      console.warn("[reviewApplication] Notification dispatch warning:", notifErr)
     }
 
-    revalidatePath("/dashboard/admin/verification")
-    revalidatePath("/dashboard/admin/riders")
-    revalidatePath("/dashboard/admin/providers")
-    revalidatePath("/dashboard/customer/apply/rider")
-    revalidatePath("/dashboard/customer/apply/provider")
-    revalidatePath("/dashboard")
+    try {
+      revalidatePath("/dashboard/admin/verification")
+      revalidatePath("/dashboard/admin/riders")
+      revalidatePath("/dashboard/admin/providers")
+      revalidatePath("/dashboard/customer/apply/rider")
+      revalidatePath("/dashboard/customer/apply/provider")
+      revalidatePath("/dashboard")
+    } catch {}
 
     return { error: null }
   } catch (err: unknown) {

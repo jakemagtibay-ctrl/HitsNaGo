@@ -98,53 +98,58 @@ export function AdminApplicationsView({ initialApplications }: AdminApplications
     }
 
     setIsProcessing(true)
-    const res = await reviewApplication({
-      type: actionModal.app.type,
-      id: actionModal.app.id,
-      decision: actionModal.type,
-      reason: decisionReason.trim() || undefined,
-    })
+    try {
+      const res = await reviewApplication({
+        type: actionModal.app.type,
+        id: actionModal.app.id,
+        decision: actionModal.type,
+        reason: decisionReason.trim() || undefined,
+      })
 
-    if (res.error) {
-      setFeedback(`Error: ${res.error}`)
-      setIsProcessing(false)
-      return
-    }
+      if (res.error) {
+        setFeedback(`Error: ${res.error}`)
+        return
+      }
 
-    // Update local state
-    const newStatus =
-      actionModal.type === "approve"
-        ? "verified"
-        : actionModal.type === "resubmit"
-        ? "resubmission_required"
-        : "rejected"
+      // Update local state
+      const newStatus =
+        actionModal.type === "approve"
+          ? "verified"
+          : actionModal.type === "resubmit"
+          ? "resubmission_required"
+          : "rejected"
 
-    setApplications((prev) =>
-      prev.map((a) =>
-        a.id === actionModal.app.id
-          ? {
-              ...a,
-              status: newStatus,
-              rejection_reason: decisionReason.trim() || null,
-              reviewed_at: new Date().toISOString(),
-            }
-          : a
+      setApplications((prev) =>
+        prev.map((a) =>
+          a.id === actionModal.app.id
+            ? {
+                ...a,
+                status: newStatus,
+                rejection_reason: decisionReason.trim() || null,
+                reviewed_at: new Date().toISOString(),
+              }
+            : a
+        )
       )
-    )
 
-    const actionText =
-      actionModal.type === "approve"
-        ? `Approved ${actionModal.app.name} as verified ${actionModal.app.type}.`
-        : actionModal.type === "resubmit"
-        ? `Requested document resubmission from ${actionModal.app.name}.`
-        : `Declined application from ${actionModal.app.name}.`
+      const actionText =
+        actionModal.type === "approve"
+          ? `Approved ${actionModal.app.name} as verified ${actionModal.app.type}.`
+          : actionModal.type === "resubmit"
+          ? `Requested document resubmission from ${actionModal.app.name}.`
+          : `Declined application from ${actionModal.app.name}.`
 
-    setFeedback(actionText)
-    setIsProcessing(false)
-    setActionModal(null)
-    setDecisionReason("")
-    if (viewingApp?.id === actionModal.app.id) {
-      handleCloseDocViewer()
+      setFeedback(actionText)
+      setActionModal(null)
+      setDecisionReason("")
+      if (viewingApp?.id === actionModal.app.id) {
+        handleCloseDocViewer()
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred."
+      setFeedback(`Error: ${msg}`)
+    } finally {
+      setIsProcessing(false)
     }
   }
 
